@@ -61,7 +61,6 @@ You can configure the gateway using environment variables:
 ```bash
 # Basic configuration
 export RUST_LOG=info
-export OPENAI_API_KEY=your_key
 
 # Start the gateway
 magicapi-ai-gateway
@@ -114,8 +113,6 @@ The gateway can be configured using environment variables:
 
 ```bash
 RUST_LOG=debug # Logging level (debug, info, warn, error)
-OPENAI_API_KEY=your_key # OpenAI API key
-GROQ_API_KEY=your_key # GROQ API key
 ```
 
 ## Performance
