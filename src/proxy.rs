@@ -189,9 +189,31 @@ pub async fn proxy_request_to_provider(
             .body(Body::from_stream(stream))
             .unwrap())
     } else {
+        // Extract headers before consuming the response body
+        let mut response_headers = HeaderMap::new();
+        for (name, value) in response.headers() {
+            if let Ok(v) = HeaderValue::from_bytes(value.as_bytes()) {
+                if let Ok(header_name) = http::HeaderName::from_bytes(name.as_ref()) {
+                    response_headers.insert(header_name, v);
+                } else {
+                    tracing::warn!("Failed to convert header name: {:?}", name);
+                }
+            } else {
+                tracing::warn!("Failed to convert header value for: {:?}", name);
+            }
+        }
+
+        // Now consume the response body
         let body = response.bytes().await?;
-        Ok(Response::builder()
-            .status(status)
+
+        let mut builder = Response::builder().status(status);
+        
+        // Add headers individually to the builder
+        for (name, value) in response_headers.iter() {
+            builder = builder.header(name, value);
+        }
+
+        Ok(builder
             .body(Body::from(body))
             .unwrap())
     }
