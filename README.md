@@ -2,6 +2,8 @@
 
 The world's fastest AI Gateway proxy, written in Rust and optimized for maximum performance. This high-performance API gateway routes requests to various AI providers (OpenAI, Anthropic) with streaming support, making it perfect for developers who need reliable and blazing-fast AI API access.
 
+[![Rust](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml/badge.svg)](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml)
+
 ## Features
 
 - 🚀 Blazing fast performance - built in Rust with zero-cost abstractions
