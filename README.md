@@ -103,10 +103,6 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   }'
 ```
 
-### Streaming Responses
-
-To enable streaming, add the `Accept: text/event-stream` header to your request.
-
 ## Configuration
 
 The gateway can be configured using environment variables:
