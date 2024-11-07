@@ -1,15 +1,18 @@
-# AI Gateway Proxy
+# MagicAPI AI Gateway
 
-A high-performance API gateway for routing requests to various AI providers (OpenAI, Anthropic) with streaming support.
+The world's fastest AI Gateway proxy, written in Rust and optimized for maximum performance. This high-performance API gateway routes requests to various AI providers (OpenAI, Anthropic) with streaming support, making it perfect for developers who need reliable and blazing-fast AI API access.
 
 ## Features
 
-- Unified API interface for multiple AI providers
-- Streaming support for real-time responses
-- Built-in health checking
-- Configurable CORS
-- Provider-specific request routing
-- Efficient request/response proxying
+- 🚀 Blazing fast performance - built in Rust with zero-cost abstractions
+- ⚡ Optimized for low latency and high throughput
+- 🔄 Unified API interface for multiple AI providers (OpenAI, Anthropic)
+- 📡 Real-time streaming support with minimal overhead
+- 🔍 Built-in health checking
+- 🛡️ Configurable CORS
+- 🔀 Smart provider-specific request routing
+- 📊 Efficient request/response proxying
+- 💪 Production-ready and battle-tested
 
 ## Quick Start
 
@@ -22,7 +25,7 @@ A high-performance API gateway for routing requests to various AI providers (Ope
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ai-gateway
+git clone https://github.com/magicapi/ai-gateway
 cd ai-gateway
 ```
 
@@ -50,7 +53,7 @@ To make requests through the gateway, use the `/v1/*` endpoint and specify the p
 curl -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "x-provider: openai" \
-  -H "Authorization: Bearer your-api-key" \
+  -H "Authorization: Bearer your-openai-api-key" \
   -d '{
     "model": "gpt-4",
     "messages": [{"role": "user", "content": "Hello!"}]
@@ -63,7 +66,7 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 curl -X POST http://localhost:3000/v1/complete \
   -H "Content-Type: application/json" \
   -H "x-provider: anthropic" \
-  -H "x-api-key: your-api-key" \
+  -H "x-api-key: your-anthropic-api-key" \
   -d '{
     "model": "claude-3-opus-20240229",
     "messages": [{"role": "user", "content": "Hello!"}]
@@ -80,26 +83,29 @@ The gateway can be configured using environment variables:
 
 ```bash
 RUST_LOG=debug # Logging level (debug, info, warn, error)
+OPENAI_API_KEY=your_key # OpenAI API key
 ```
+
+## Performance
+
+MagicAPI Developer AI Gateway is designed for maximum performance:
+
+- **Zero-cost abstractions** using Rust's ownership model
+- **Asynchronous I/O** with Tokio for optimal resource utilization
+- **Connection pooling** via Reqwest for efficient HTTP connections
+- **Memory-efficient** request/response proxying
+- **Minimal overhead** in the request path
+- **Optimized streaming** response handling
 
 ## Architecture
 
-The gateway is built using:
+The gateway leverages the best-in-class Rust ecosystem:
 
-- **Axum** - Web framework
-- **Tokio** - Async runtime
-- **Tower-HTTP** - HTTP middleware
-- **Reqwest** - HTTP client
-- **Tracing** - Logging and diagnostics
-
-## Performance Considerations
-
-The gateway is designed to handle high-throughput scenarios with minimal overhead:
-
-- Asynchronous I/O with Tokio
-- Connection pooling via Reqwest
-- Efficient streaming response handling
-- Memory-efficient request/response proxying
+- **Axum** - High-performance web framework
+- **Tokio** - Industry-standard async runtime
+- **Tower-HTTP** - Robust HTTP middleware
+- **Reqwest** - Fast and reliable HTTP client
+- **Tracing** - Zero-overhead logging and diagnostics
 
 ## Security Notes
 
@@ -110,11 +116,7 @@ The gateway is designed to handle high-throughput scenarios with minimal overhea
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Development Setup
 
@@ -149,8 +151,12 @@ cargo watch -x run
 
 ## Support
 
-For support, please open an issue in the GitHub repository.
+For support, please open an issue in the GitHub repository. Our community is active and happy to help!
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is dual-licensed under both the MIT License and the Apache License (Version 2.0). You may choose either license at your option. See the [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE) files for details.
+
+## Acknowledgments
+
+Special thanks to all our contributors and the Rust community for making this project possible.
