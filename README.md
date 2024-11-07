@@ -189,3 +189,67 @@ This project is dual-licensed under both the MIT License and the Apache License 
 ## Acknowledgments
 
 Special thanks to all our contributors and the Rust community for making this project possible.
+
+## Docker Support
+
+### Building and Running with Docker
+
+1. Build the Docker image:
+```bash
+docker build -t magicapi1/magicapi-ai-gateway:latest .
+```
+
+2. Run the container:
+```bash
+docker run -p 3000:3000 \
+  -e RUST_LOG=info \
+  magicapi1/magicapi-ai-gateway:latest
+```
+
+### Using Pre-built Docker Image
+
+```bash
+docker pull magicapi1/magicapi-ai-gateway:latest
+docker run -p 3000:3000 \
+  -e RUST_LOG=info \
+  magicapi1/magicapi-ai-gateway:latest
+```
+
+### Docker Compose
+
+#### Option 1: Build from Source
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+services:
+  gateway:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
+```
+
+#### Option 2: Use Prebuilt Image
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+services:
+  gateway:
+    image: magicapi1/magicapi-ai-gateway:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
+```
+
+Then run either option with:
+```bash
+docker-compose up -d
+```

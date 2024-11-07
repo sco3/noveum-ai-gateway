@@ -1,6 +1,6 @@
 [package]
 name = "magicapi-ai-gateway"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "A high-performance AI Gateway proxy for routing requests to various AI providers, offering seamless integration and management of multiple AI services"
 authors = ["MagicAPI Team <team@magicapi.com>"]
