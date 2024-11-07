@@ -21,7 +21,7 @@ The world's fastest AI Gateway proxy, written in Rust and optimized for maximum 
 - Rust 1.70 or higher
 - Cargo package manager
 
-### Installation
+#### Building from Source
 
 1. Clone the repository:
 ```bash
