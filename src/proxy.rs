@@ -72,36 +72,37 @@ pub async fn proxy_request_to_provider(
         reqwest::header::HeaderValue::from_static("application/json"),
     );
 
-    // Efficient header handling for OpenAI
-    if provider == "openai" {
-        tracing::debug!("Processing OpenAI request headers");
-        if let Some(api_key) = original_request.headers().get("x-magicapi-api-key")
-            .and_then(|h| h.to_str().ok()) {
-            tracing::debug!("Using x-magicapi-api-key for authentication");
-            reqwest_headers.insert(
-                reqwest::header::AUTHORIZATION,
-                reqwest::header::HeaderValue::from_str(&format!("Bearer {}", api_key))
-                    .map_err(|_| {
-                        tracing::error!("Failed to create authorization header from x-magicapi-api-key");
-                        AppError::InvalidHeader
-                    })?
-            );
-        } else if let Some(auth) = original_request.headers().get("authorization")
-            .and_then(|h| h.to_str().ok()) {
-            tracing::debug!("Using provided authorization header");
-            reqwest_headers.insert(
-                reqwest::header::AUTHORIZATION,
-                reqwest::header::HeaderValue::from_str(auth)
-                    .map_err(|_| {
-                        tracing::error!("Failed to process authorization header");
-                        AppError::InvalidHeader
-                    })?
-            );
-        }
-    }
-
     // Header handling for different providers
     match provider {
+        "openai" => {
+            tracing::debug!("Processing OpenAI request headers");
+            if let Some(api_key) = original_request.headers().get("x-magicapi-api-key")
+                .and_then(|h| h.to_str().ok()) {
+                tracing::debug!("Using x-magicapi-api-key for authentication");
+                reqwest_headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", api_key))
+                        .map_err(|_| {
+                            tracing::error!("Failed to create authorization header from x-magicapi-api-key");
+                            AppError::InvalidHeader
+                        })?
+                );
+            } else if let Some(auth) = original_request.headers().get("authorization")
+                .and_then(|h| h.to_str().ok()) {
+                tracing::debug!("Using provided authorization header");
+                reqwest_headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    reqwest::header::HeaderValue::from_str(auth)
+                        .map_err(|_| {
+                            tracing::error!("Failed to process authorization header");
+                            AppError::InvalidHeader
+                        })?
+                );
+            } else {
+                tracing::error!("No authorization header found for OpenAI request");
+                return Err(AppError::MissingApiKey);
+            }
+        },
         "groq" => {
             tracing::debug!("Processing GROQ request headers");
             if let Some(auth) = original_request.headers().get("authorization")
