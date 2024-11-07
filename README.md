@@ -1,6 +1,6 @@
 # MagicAPI AI Gateway
 
-The world's fastest AI Gateway proxy, written in Rust and optimized for maximum performance. This high-performance API gateway routes requests to various AI providers (OpenAI, Anthropic) with streaming support, making it perfect for developers who need reliable and blazing-fast AI API access.
+The world's fastest AI Gateway proxy, written in Rust and optimized for maximum performance. This high-performance API gateway routes requests to various AI providers (OpenAI, GROQ) with streaming support, making it perfect for developers who need reliable and blazing-fast AI API access.
 
 [![Rust](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml/badge.svg)](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml)
 [![Crates.io](https://img.shields.io/crates/v/magicapi-ai-gateway.svg)](https://crates.io/crates/magicapi-ai-gateway)
@@ -9,7 +9,7 @@ The world's fastest AI Gateway proxy, written in Rust and optimized for maximum 
 
 - 🚀 Blazing fast performance - built in Rust with zero-cost abstractions
 - ⚡ Optimized for low latency and high throughput
-- 🔄 Unified API interface for multiple AI providers (OpenAI, Anthropic)
+- 🔄 Unified API interface for multiple AI providers (OpenAI, GROQ)
 - 📡 Real-time streaming support with minimal overhead
 - 🔍 Built-in health checking
 - 🛡️ Configurable CORS
@@ -89,16 +89,18 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   }'
 ```
 
-#### Example: Anthropic Request
+#### Example: GROQ Request
 
 ```bash
-curl -X POST http://localhost:3000/v1/complete \
+curl -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "x-provider: anthropic" \
-  -H "x-api-key: your-anthropic-api-key" \
+  -H "x-provider: groq" \
+  -H "Authorization: Bearer your-groq-api-key" \
   -d '{
-    "model": "claude-3-opus-20240229",
-    "messages": [{"role": "user", "content": "Hello!"}]
+    "model": "llama2-70b-4096",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "stream": true,
+    "max_tokens": 300
   }'
 ```
 
@@ -113,6 +115,7 @@ The gateway can be configured using environment variables:
 ```bash
 RUST_LOG=debug # Logging level (debug, info, warn, error)
 OPENAI_API_KEY=your_key # OpenAI API key
+GROQ_API_KEY=your_key # GROQ API key
 ```
 
 ## Performance

@@ -40,6 +40,7 @@ pub async fn proxy_request_to_provider(
     let base_url = match provider {
         "openai" => "https://api.openai.com",
         "anthropic" => "https://api.anthropic.com",
+        "groq" => "https://api.groq.com/openai",
         _ => {
             error!(provider = provider, "Unsupported provider");
             return Err(AppError::UnsupportedProvider);
@@ -71,35 +72,75 @@ pub async fn proxy_request_to_provider(
         reqwest::header::HeaderValue::from_static("application/json"),
     );
 
-    // Efficient header handling for OpenAI
-    if provider == "openai" {
-        if let Some(api_key) = original_request.headers().get("x-portkey-api-key")
-            .and_then(|h| h.to_str().ok()) {
-            reqwest_headers.insert(
-                reqwest::header::AUTHORIZATION,
-                reqwest::header::HeaderValue::from_str(&format!("Bearer {}", api_key))
-                    .map_err(|_| AppError::InvalidHeader)?
-            );
-        } else if let Some(auth) = original_request.headers().get("authorization")
-            .and_then(|h| h.to_str().ok()) {
-            reqwest_headers.insert(
-                reqwest::header::AUTHORIZATION,
-                reqwest::header::HeaderValue::from_str(auth)
-                    .map_err(|_| AppError::InvalidHeader)?
-            );
-        }
+    // Header handling for different providers
+    match provider {
+        "openai" => {
+            tracing::debug!("Processing OpenAI request headers");
+            if let Some(api_key) = original_request.headers().get("x-magicapi-api-key")
+                .and_then(|h| h.to_str().ok()) {
+                tracing::debug!("Using x-magicapi-api-key for authentication");
+                reqwest_headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    reqwest::header::HeaderValue::from_str(&format!("Bearer {}", api_key))
+                        .map_err(|_| {
+                            tracing::error!("Failed to create authorization header from x-magicapi-api-key");
+                            AppError::InvalidHeader
+                        })?
+                );
+            } else if let Some(auth) = original_request.headers().get("authorization")
+                .and_then(|h| h.to_str().ok()) {
+                tracing::debug!("Using provided authorization header");
+                reqwest_headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    reqwest::header::HeaderValue::from_str(auth)
+                        .map_err(|_| {
+                            tracing::error!("Failed to process authorization header");
+                            AppError::InvalidHeader
+                        })?
+                );
+            } else {
+                tracing::error!("No authorization header found for OpenAI request");
+                return Err(AppError::MissingApiKey);
+            }
+        },
+        "groq" => {
+            tracing::debug!("Processing GROQ request headers");
+            if let Some(auth) = original_request.headers().get("authorization")
+                .and_then(|h| h.to_str().ok()) {
+                tracing::debug!("Using provided authorization header for GROQ");
+                reqwest_headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    reqwest::header::HeaderValue::from_str(auth)
+                        .map_err(|_| {
+                            tracing::error!("Failed to process GROQ authorization header");
+                            AppError::InvalidHeader
+                        })?
+                );
+            } else {
+                tracing::error!("No authorization header found for GROQ request");
+                return Err(AppError::MissingApiKey);
+            }
+        },
+        _ => return Err(AppError::UnsupportedProvider),
     }
 
+    tracing::info!("Proxying request to {}", url);
     // Efficiently handle request body
     let body_bytes = body::to_bytes(original_request.into_body(), usize::MAX).await?;
+    tracing::debug!("Request body size: {} bytes", body_bytes.len());
     
     let proxy_request = CLIENT
         .request(method, url)
         .headers(reqwest_headers)
         .body(body_bytes.to_vec());
 
-    let response = proxy_request.send().await?;
+    tracing::debug!("Sending request to provider");
+    let response = proxy_request.send().await.map_err(|e| {
+        tracing::error!("Provider request failed: {}", e);
+        e
+    })?;
     let status = StatusCode::from_u16(response.status().as_u16())?;
+    tracing::info!("Provider response status: {}", status);
 
     // Optimize streaming response handling
     if response.headers()
@@ -107,23 +148,38 @@ pub async fn proxy_request_to_provider(
         .and_then(|v| v.to_str().ok())
         .map_or(false, |ct| ct.contains("text/event-stream")) 
     {
+        tracing::info!("Processing streaming response");
         // Efficient headers copying with proper type conversion
         let mut response_headers = HeaderMap::new();
         for (name, value) in response.headers() {
             if let Ok(v) = HeaderValue::from_bytes(value.as_bytes()) {
                 if let Ok(header_name) = http::HeaderName::from_bytes(name.as_ref()) {
                     response_headers.insert(header_name, v);
+                } else {
+                    tracing::warn!("Failed to convert header name: {:?}", name);
                 }
+            } else {
+                tracing::warn!("Failed to convert header value for: {:?}", name);
             }
         }
 
+        tracing::debug!("Setting up streaming response");
         // Efficient stream handling with proper error mapping
         let stream = response.bytes_stream()
-            .map(|result| match result {
-                Ok(bytes) => Ok(Bytes::from(bytes)),
-                Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map(|result| {
+                match result {
+                    Ok(bytes) => {
+                        tracing::trace!("Streaming chunk: {} bytes", bytes.len());
+                        Ok(Bytes::from(bytes))
+                    },
+                    Err(e) => {
+                        tracing::error!("Stream error: {}", e);
+                        Err(std::io::Error::new(std::io::ErrorKind::Other, e))
+                    }
+                }
             });
 
+        tracing::debug!("Returning streaming response");
         Ok(Response::builder()
             .status(status)
             .header("content-type", "text/event-stream")
@@ -133,9 +189,31 @@ pub async fn proxy_request_to_provider(
             .body(Body::from_stream(stream))
             .unwrap())
     } else {
+        // Extract headers before consuming the response body
+        let mut response_headers = HeaderMap::new();
+        for (name, value) in response.headers() {
+            if let Ok(v) = HeaderValue::from_bytes(value.as_bytes()) {
+                if let Ok(header_name) = http::HeaderName::from_bytes(name.as_ref()) {
+                    response_headers.insert(header_name, v);
+                } else {
+                    tracing::warn!("Failed to convert header name: {:?}", name);
+                }
+            } else {
+                tracing::warn!("Failed to convert header value for: {:?}", name);
+            }
+        }
+
+        // Now consume the response body
         let body = response.bytes().await?;
-        Ok(Response::builder()
-            .status(status)
+
+        let mut builder = Response::builder().status(status);
+        
+        // Add headers individually to the builder
+        for (name, value) in response_headers.iter() {
+            builder = builder.header(name, value);
+        }
+
+        Ok(builder
             .body(Body::from(body))
             .unwrap())
     }

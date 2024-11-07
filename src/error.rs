@@ -14,6 +14,7 @@ pub enum AppError {
     InvalidStatus(InvalidStatusCode),
     InvalidHeader,
     UnsupportedProvider,
+    MissingApiKey,
 }
 
 impl IntoResponse for AppError {
@@ -39,6 +40,9 @@ impl IntoResponse for AppError {
             }
             AppError::UnsupportedProvider => {
                 (StatusCode::BAD_REQUEST, "Unsupported provider").into_response()
+            }
+            AppError::MissingApiKey => {
+                (StatusCode::UNAUTHORIZED, "Missing or invalid API key").into_response()
             }
         }
     }
