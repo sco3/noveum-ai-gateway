@@ -3,6 +3,7 @@
 The world's fastest AI Gateway proxy, written in Rust and optimized for maximum performance. This high-performance API gateway routes requests to various AI providers (OpenAI, Anthropic) with streaming support, making it perfect for developers who need reliable and blazing-fast AI API access.
 
 [![Rust](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml/badge.svg)](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml)
+[![Crates.io](https://img.shields.io/crates/v/magicapi-ai-gateway.svg)](https://crates.io/crates/magicapi-ai-gateway)
 
 ## Features
 
@@ -18,10 +19,20 @@ The world's fastest AI Gateway proxy, written in Rust and optimized for maximum 
 
 ## Quick Start
 
-### Prerequisites
+### Installation
 
-- Rust 1.70 or higher
-- Cargo package manager
+You can install MagicAPI Gateway using one of these methods:
+
+#### Using Cargo Install
+
+```bash
+cargo install magicapi-ai-gateway
+```
+
+After installation, you can start the gateway by running:
+```bash
+magicapi-ai-gateway
+```
 
 #### Building from Source
 
@@ -41,7 +52,23 @@ cargo build --release
 cargo run --release
 ```
 
-The server will start on `http://127.0.0.1:3000`.
+The server will start on `http://127.0.0.1:3000` by default.
+
+### Running the Gateway
+
+You can configure the gateway using environment variables:
+
+```bash
+# Basic configuration
+export RUST_LOG=info
+export OPENAI_API_KEY=your_key
+
+# Start the gateway
+magicapi-ai-gateway
+
+# Or with custom port
+PORT=8080 magicapi-ai-gateway
+```
 
 ## Usage
 
