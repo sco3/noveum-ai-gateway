@@ -11,6 +11,12 @@ documentation = "https://docs.magicapi.com"
 readme = "README.md"
 keywords = ["ai", "gateway", "proxy", "openai", "anthropic"]
 categories = ["web-programming", "api-bindings", "asynchronous"]
+exclude = [
+    ".cursorrules",
+    ".github/**/*",
+    ".cargo_vcs_info.json",
+    "Cargo.toml.orig"
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
