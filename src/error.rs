@@ -1,79 +1,89 @@
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
+    Json,
 };
+use serde_json::json;
 use std::{io, convert::Infallible};
 use http::status::InvalidStatusCode;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    ReqwestError(reqwest::Error),
-    IoError(io::Error),
-    AxumError(axum::Error),
+    #[error("Request to provider failed: {0}")]
+    ReqwestError(#[from] reqwest::Error),
+    
+    #[error("IO error: {0}")]
+    IoError(#[from] io::Error),
+    
+    #[error("Axum error: {0}")]
+    AxumError(#[from] axum::Error),
+    
+    #[error("Invalid HTTP method")]
     InvalidMethod,
-    InvalidStatus(InvalidStatusCode),
+    
+    #[error("Invalid status code: {0}")]
+    InvalidStatus(#[from] InvalidStatusCode),
+    
+    #[error("Invalid header value")]
     InvalidHeader,
+    
+    #[error("Unsupported provider")]
     UnsupportedProvider,
+    
+    #[error("Missing or invalid API key")]
     MissingApiKey,
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        match self {
-            AppError::ReqwestError(e) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
-            }
-            AppError::IoError(e) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
-            }
-            AppError::AxumError(e) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
-            }
-            AppError::InvalidMethod => {
-                (StatusCode::BAD_REQUEST, "Invalid HTTP method").into_response()
-            }
-            AppError::InvalidStatus(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Invalid status code received").into_response()
-            }
-            AppError::InvalidHeader => {
-                (StatusCode::BAD_REQUEST, "Invalid header value").into_response()
-            }
-            AppError::UnsupportedProvider => {
-                (StatusCode::BAD_REQUEST, "Unsupported provider").into_response()
-            }
-            AppError::MissingApiKey => {
-                (StatusCode::UNAUTHORIZED, "Missing or invalid API key").into_response()
-            }
-        }
-    }
-}
+        let (status, error_message) = match &self {
+            AppError::ReqwestError(e) => (
+                StatusCode::BAD_GATEWAY,
+                format!("Provider request failed: {}", e),
+            ),
+            AppError::IoError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Internal server error: {}", e),
+            ),
+            AppError::AxumError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Server error: {}", e),
+            ),
+            AppError::InvalidMethod => (
+                StatusCode::BAD_REQUEST,
+                "Invalid HTTP method".to_string(),
+            ),
+            AppError::InvalidStatus(_) => (
+                StatusCode::BAD_GATEWAY,
+                "Invalid status code from provider".to_string(),
+            ),
+            AppError::InvalidHeader => (
+                StatusCode::BAD_REQUEST,
+                "Invalid header value".to_string(),
+            ),
+            AppError::UnsupportedProvider => (
+                StatusCode::BAD_REQUEST,
+                "Unsupported AI provider".to_string(),
+            ),
+            AppError::MissingApiKey => (
+                StatusCode::UNAUTHORIZED,
+                "Missing or invalid API key".to_string(),
+            ),
+        };
 
-impl From<reqwest::Error> for AppError {
-    fn from(err: reqwest::Error) -> Self {
-        AppError::ReqwestError(err)
-    }
-}
+        let body = Json(json!({
+            "error": {
+                "message": error_message,
+                "type": format!("{:?}", self),
+            }
+        }));
 
-impl From<io::Error> for AppError {
-    fn from(err: io::Error) -> Self {
-        AppError::IoError(err)
-    }
-}
-
-impl From<axum::Error> for AppError {
-    fn from(err: axum::Error) -> Self {
-        AppError::AxumError(err)
+        (status, body).into_response()
     }
 }
 
 impl From<Infallible> for AppError {
     fn from(_: Infallible) -> Self {
         unreachable!("Infallible error cannot occur")
-    }
-}
-
-impl From<InvalidStatusCode> for AppError {
-    fn from(err: InvalidStatusCode) -> Self {
-        AppError::InvalidStatus(err)
     }
 } 
