@@ -1,6 +1,6 @@
 # MagicAPI AI Gateway
 
-The world's fastest AI Gateway proxy, written in Rust and optimized for maximum performance. This high-performance API gateway routes requests to various AI providers (OpenAI, GROQ) with streaming support, making it perfect for developers who need reliable and blazing-fast AI API access.
+The world's fastest AI Gateway proxy, written in Rust and optimized for maximum performance. This high-performance API gateway routes requests to various AI providers (OpenAI, Anthropic, GROQ) with streaming support, making it perfect for developers who need reliable and blazing-fast AI API access.
 
 [![Rust](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml/badge.svg)](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml)
 [![Crates.io](https://img.shields.io/crates/v/magicapi-ai-gateway.svg)](https://crates.io/crates/magicapi-ai-gateway)
@@ -9,7 +9,7 @@ The world's fastest AI Gateway proxy, written in Rust and optimized for maximum 
 
 - 🚀 Blazing fast performance - built in Rust with zero-cost abstractions
 - ⚡ Optimized for low latency and high throughput
-- 🔄 Unified API interface for multiple AI providers (OpenAI, GROQ)
+- 🔄 Unified API interface for multiple AI providers (OpenAI, Anthropic, GROQ)
 - 📡 Real-time streaming support with minimal overhead
 - 🔍 Built-in health checking
 - 🛡️ Configurable CORS
@@ -102,6 +102,26 @@ curl -X POST http://localhost:3000/v1/chat/completions \
     "max_tokens": 300
   }'
 ```
+
+#### Example: Anthropic Request
+
+```bash
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-provider: anthropic" \
+  -H "Authorization: Bearer your-anthropic-api-key" \
+  -d '{
+    "model": "claude-3-5-sonnet-20241022",
+    "messages": [{"role": "user", "content": "Write a poem"}],
+    "stream": true,
+    "max_tokens": 1024
+  }'
+```
+
+Note: When using Anthropic as the provider, the gateway automatically:
+- Routes requests to Anthropic's message API
+- Converts the Authorization Bearer token to the required x-api-key format
+- Adds the required anthropic-version header
 
 ## Configuration
 

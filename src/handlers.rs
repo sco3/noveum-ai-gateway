@@ -1,14 +1,20 @@
 use axum::{
     extract::State,
     response::IntoResponse,
-    http::{HeaderMap, StatusCode, Request},
+    http::{HeaderMap, Request},
     body::Body,
+    Json,
 };
 use std::sync::Arc;
+use serde_json::json;
+use tracing::{info, error};
 use crate::{config::AppConfig, proxy::proxy_request_to_provider};
 
 pub async fn health_check() -> impl IntoResponse {
-    StatusCode::OK
+    Json(json!({
+        "status": "healthy",
+        "version": env!("CARGO_PKG_VERSION")
+    }))
 }
 
 pub async fn proxy_request(
@@ -21,11 +27,22 @@ pub async fn proxy_request(
         .and_then(|h| h.to_str().ok())
         .unwrap_or("openai");
 
+    info!(
+        provider = provider,
+        method = %request.method(),
+        path = %request.uri().path(),
+        "Incoming proxy request"
+    );
+
     match proxy_request_to_provider(config, provider, request).await {
-        Ok(response) => response.into_response(),
+        Ok(response) => response,
         Err(e) => {
-            tracing::error!("Proxy error: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            error!(
+                error = %e,
+                provider = provider,
+                "Proxy request failed"
+            );
+            e.into_response()
         }
     }
 } 
