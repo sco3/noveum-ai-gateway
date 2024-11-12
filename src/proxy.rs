@@ -37,24 +37,30 @@ pub async fn proxy_request_to_provider(
         "Incoming request"
     );
 
-    let base_url = match provider {
-        "openai" => "https://api.openai.com",
-        "anthropic" => "https://api.anthropic.com",
-        "groq" => "https://api.groq.com/openai",
+    let path = original_request.uri().path();
+    let (base_url, modified_path) = match provider {
+        "openai" => ("https://api.openai.com", path),
+        "anthropic" => {
+            if path.contains("/chat/completions") {
+                ("https://api.anthropic.com", "/v1/messages")
+            } else {
+                ("https://api.anthropic.com", path)
+            }
+        },
+        "groq" => ("https://api.groq.com/openai", path),
         _ => {
             error!(provider = provider, "Unsupported provider");
             return Err(AppError::UnsupportedProvider);
         }
     };
 
-    let path = original_request.uri().path();
     let query = original_request
         .uri()
         .query()
         .map(|q| format!("?{}", q))
         .unwrap_or_default();
 
-    let url = format!("{}{}{}", base_url, path, query);
+    let url = format!("{}{}{}", base_url, modified_path, query);
     info!(
         provider = provider,
         url = %url,
@@ -118,6 +124,32 @@ pub async fn proxy_request_to_provider(
                 );
             } else {
                 tracing::error!("No authorization header found for GROQ request");
+                return Err(AppError::MissingApiKey);
+            }
+        },
+        "anthropic" => {
+            tracing::debug!("Processing Anthropic request headers");
+            if let Some(auth) = original_request.headers().get("authorization")
+                .and_then(|h| h.to_str().ok()) {
+                tracing::debug!("Using provided authorization header for Anthropic");
+                // Convert Bearer token to x-api-key format
+                let api_key = auth.trim_start_matches("Bearer ");
+                reqwest_headers.insert(
+                    reqwest::header::HeaderName::from_static("x-api-key"),
+                    reqwest::header::HeaderValue::from_str(api_key)
+                        .map_err(|_| {
+                            tracing::error!("Failed to process Anthropic authorization header");
+                            AppError::InvalidHeader
+                        })?
+                );
+                
+                // Add required Anthropic version header
+                reqwest_headers.insert(
+                    reqwest::header::HeaderName::from_static("anthropic-version"),
+                    reqwest::header::HeaderValue::from_static("2023-06-01")
+                );
+            } else {
+                tracing::error!("No authorization header found for Anthropic request");
                 return Err(AppError::MissingApiKey);
             }
         },
