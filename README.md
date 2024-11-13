@@ -388,7 +388,7 @@ MagicAPI provides a testing deployment of the AI Gateway, hosted in our London d
 https://gateway.magicapi.dev
 ```
 
-### Example Request to Testing Gateway
+### Send Example Request to Testing Gateway
 ```bash
 curl --location 'https://gateway.magicapi.dev/v1/chat/completions' \
   --header 'Authorization: Bearer YOUR_API_KEY' \
