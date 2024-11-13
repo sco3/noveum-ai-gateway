@@ -3,9 +3,9 @@ name: Docker Build and Push
 on:
   push:
     branches:
-      - '**'  # Match all branches
+      - 'main'  # Only trigger push events on main
     tags: [ "v*" ]
-  pull_request:
+  pull_request:  # Keep PR triggers for all branches
   workflow_dispatch:
 
 env:
@@ -14,6 +14,8 @@ env:
 
 jobs:
   docker:
+    # Skip this job if it's a push event on a non-main branch
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,6 +24,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Generate Cargo.lock if it doesn't exist
+      - name: Generate Cargo.lock
+        run: |
+          if [ ! -f "Cargo.lock" ]; then
+            cargo generate-lockfile
+          fi
 
       - name: Extract version from Cargo.toml
         id: version
