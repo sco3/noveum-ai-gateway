@@ -1,0 +1,116 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: magicapi-gateway-ingress
+  namespace: magicapi
+  annotations:
+    cert-manager.io/issuer: prod-issuer
+    cert-manager.io/issuer-kind: OriginIssuer
+    cert-manager.io/issuer-group: cert-manager.k8s.cloudflare.com
+    external-dns.alpha.kubernetes.io/hostname: gateway.magicapi.dev
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: 'true'
+    nginx.ingress.kubernetes.io/use-proxy-protocol: "true"
+spec:
+  ingressClassName: kong
+  rules:
+    - host: gateway.magicapi.dev
+      http:
+        paths:
+          - backend:
+              service:
+                name: magicapi-gateway-svc
+                port:
+                  number: 80
+            path: /
+            pathType: Prefix
+  tls:
+    - hosts:
+        - gateway.magicapi.dev
+      secretName: magicapi-tls-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: magicapi-gateway-svc
+  namespace: magicapi
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: gateway.magicapi.dev
+spec:
+  selector:
+    app: magicapi-gateway
+  type: ClusterIP
+  ports:
+    - port: 80
+      name: http
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: magicapi-gateway
+  namespace: magicapi
+  labels:
+    app: magicapi-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: magicapi-gateway
+  strategy:
+    rollingUpdate:
+      maxSurge: 10%
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: magicapi-gateway
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: magicapi-gateway
+          image: magicapi1/magicapi-ai-gateway:latest
+          env:
+            - name: RUST_LOG
+              value: "info"
+          ports:
+            - containerPort: 3000
+              name: http
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: '512Mi'
+              cpu: '512m'
+            limits:
+              memory: '1024Mi'
+              cpu: '1024m'
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 30
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: magicapi-gateway
+  namespace: magicapi
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: magicapi-gateway
+  minReplicas: 1
+  maxReplicas: 50
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60

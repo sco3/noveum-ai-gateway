@@ -43,9 +43,9 @@ pub async fn proxy_request_to_provider(
     let url = format!("{}{}{}", provider.base_url(), modified_path, query);
 
     debug!(
-        provider = provider_name,
+        provider = provider.name(),
         url = %url,
-        "Preparing proxy request"
+        "Preparing proxy request to {} provider", provider.name()
     );
 
     // Process headers

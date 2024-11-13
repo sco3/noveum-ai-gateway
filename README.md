@@ -249,10 +249,15 @@ Special thanks to all our contributors and the Rust community for making this pr
 
 1. Build the Docker image:
 ```bash
-docker build -t magicapi1/magicapi-ai-gateway:latest .
+docker buildx build --platform linux/amd64 -t magicapi1/magicapi-ai-gateway:latest . --load
 ```
 
-2. Run the container:
+2. Push the image to Docker Hub:
+```bash
+docker push magicapi1/magicapi-ai-gateway:latest
+```
+
+3. Run the container:
 ```bash
 docker run -p 3000:3000 \
   -e RUST_LOG=info \
@@ -279,6 +284,7 @@ version: '3.8'
 services:
   gateway:
     build: .
+    platform: linux/amd64
     ports:
       - "3000:3000"
     environment:
@@ -295,6 +301,7 @@ version: '3.8'
 services:
   gateway:
     image: magicapi1/magicapi-ai-gateway:latest
+    platform: linux/amd64
     ports:
       - "3000:3000"
     environment:
