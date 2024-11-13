@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.7] - 2024-11-13
+### Added
+- Managed deployment offering with testing gateway at gateway.magicapi.dev
+- Thread-based performance optimizations for improved request handling
+- Documentation for testing deployment environment
+### Enhanced
+- Significant performance improvements in request processing
+- Build system optimizations
+- CI/CD pipeline improvements
+### Fixed
+- Git build configuration issues
+- Various minor bug fixes
+
 ## [0.1.6] - 2024-11-13
 ### Added
 - Support for Fireworks AI provider
@@ -65,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error handling
 - Basic documentation
 
-[Unreleased]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.4...v0.1.5
 [0.1.3]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.0...v0.1.3

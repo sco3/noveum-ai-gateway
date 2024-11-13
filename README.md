@@ -249,10 +249,15 @@ Special thanks to all our contributors and the Rust community for making this pr
 
 1. Build the Docker image:
 ```bash
-docker build -t magicapi1/magicapi-ai-gateway:latest .
+docker buildx build --platform linux/amd64 -t magicapi1/magicapi-ai-gateway:latest . --load
 ```
 
-2. Run the container:
+2. Push the image to Docker Hub:
+```bash
+docker push magicapi1/magicapi-ai-gateway:latest
+```
+
+3. Run the container:
 ```bash
 docker run -p 3000:3000 \
   -e RUST_LOG=info \
@@ -279,6 +284,7 @@ version: '3.8'
 services:
   gateway:
     build: .
+    platform: linux/amd64
     ports:
       - "3000:3000"
     environment:
@@ -295,6 +301,7 @@ version: '3.8'
 services:
   gateway:
     image: magicapi1/magicapi-ai-gateway:latest
+    platform: linux/amd64
     ports:
       - "3000:3000"
     environment:
@@ -327,11 +334,11 @@ git add Cargo.toml CHANGELOG.md
 git commit -m "chore: release v0.1.6"
 
 # Create a git tag
-git tag -a v0.1.7 -m "Release v0.1.6"
+git tag -a v0.1.7 -m "Release v0.1.7"
 
 # Push changes and tag
-git push origin release/v0.1.6
-git push origin v0.1.6
+git push origin release/v0.1.7
+git push origin v0.1.7
 ```
 
 ### 3. Publishing to crates.io
@@ -362,7 +369,7 @@ After publishing, verify:
 - The new version appears on [crates.io](https://crates.io/crates/magicapi-ai-gateway)
 - Documentation is updated on [docs.rs](https://docs.rs/magicapi-ai-gateway)
 - The GitHub release is visible (if using GitHub)
-```
+
 
 This process follows Rust community best practices for releasing crates. Remember to:
 - Follow semantic versioning (MAJOR.MINOR.PATCH)
@@ -371,3 +378,33 @@ This process follows Rust community best practices for releasing crates. Remembe
 - Keep your repository and crates.io package in sync
 
 Would you like me to explain any part of this process in more detail?
+
+## Testing Deployment
+
+MagicAPI provides a testing deployment of the AI Gateway, hosted in our London data centre. This deployment is intended for testing and evaluation purposes only, and should not be used for production workloads.
+
+### Testing Gateway URL
+```
+https://gateway.magicapi.dev
+```
+
+### Example Request to Testing Gateway
+```bash
+curl --location 'https://gateway.magicapi.dev/v1/chat/completions' \
+  --header 'Authorization: Bearer YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --header 'x-provider: groq' \
+  --data '{
+    "model": "llama-3.1-8b-instant",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Write a poem"
+        }
+    ],
+    "stream": true,
+    "max_tokens": 300
+}'
+```
+
+> **Note**: This deployment is provided for testing and evaluation purposes only. For production workloads, please deploy your own instance of the gateway or contact us for information about production-ready managed solutions.

@@ -1,25 +1,24 @@
 use crate::{config::AppConfig, proxy::proxy_request_to_provider};
 use axum::{
     body::Body,
-    extract::State,
+    extract::{State, ConnectInfo},
     http::{HeaderMap, Request},
     response::IntoResponse,
     Json,
 };
 use serde_json::json;
-use std::sync::Arc;
-use tracing::{error, info};
+use std::{sync::Arc, net::SocketAddr};
+use tracing::{error, Instrument, debug};
 
 pub async fn health_check() -> impl IntoResponse {
-    Json(json!({
-        "status": "healthy",
-        "version": env!("CARGO_PKG_VERSION")
-    }))
+    debug!("Health check endpoint called");
+    Json(json!({ "status": "healthy", "version": env!("CARGO_PKG_VERSION") }))
 }
 
 pub async fn proxy_request(
     State(config): State<Arc<AppConfig>>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     request: Request<Body>,
 ) -> impl IntoResponse {
     let provider = headers
@@ -27,22 +26,30 @@ pub async fn proxy_request(
         .and_then(|h| h.to_str().ok())
         .unwrap_or("openai");
 
-    info!(
+    debug!(
+        "Received request for provider: {}, client: {}, path: {}",
+        provider,
+        addr,
+        request.uri().path()
+    );
+
+    let span = tracing::info_span!(
+        "proxy_request",
         provider = provider,
         method = %request.method(),
         path = %request.uri().path(),
-        "Incoming proxy request"
+        client = %addr
     );
 
-    match proxy_request_to_provider(config, provider, request).await {
-        Ok(response) => response,
-        Err(e) => {
-            error!(
-                error = %e,
-                provider = provider,
-                "Proxy request failed"
-            );
-            e.into_response()
+    async move {
+        match proxy_request_to_provider(config, provider, request).await {
+            Ok(response) => response,
+            Err(e) => {
+                error!(error = %e, "Proxy request failed");
+                e.into_response()
+            }
         }
     }
+    .instrument(span)
+    .await
 }
