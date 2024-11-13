@@ -378,3 +378,33 @@ This process follows Rust community best practices for releasing crates. Remembe
 - Keep your repository and crates.io package in sync
 
 Would you like me to explain any part of this process in more detail?
+
+## Testing Deployment
+
+MagicAPI provides a testing deployment of the AI Gateway, hosted in our London data centre. This deployment is intended for testing and evaluation purposes only, and should not be used for production workloads.
+
+### Testing Gateway URL
+```
+https://gateway.magicapi.dev
+```
+
+### Example Request to Testing Gateway
+```bash
+curl --location 'https://gateway.magicapi.dev/v1/chat/completions' \
+  --header 'Authorization: Bearer YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --header 'x-provider: groq' \
+  --data '{
+    "model": "llama-3.1-8b-instant",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Write a poem"
+        }
+    ],
+    "stream": true,
+    "max_tokens": 300
+}'
+```
+
+> **Note**: This deployment is provided for testing and evaluation purposes only. For production workloads, please deploy your own instance of the gateway or contact us for information about production-ready managed solutions.
