@@ -160,6 +160,80 @@ Note: When using Anthropic as the provider, the gateway automatically:
 - Converts the Authorization Bearer token to the required x-api-key format
 - Adds the required anthropic-version header
 
+## SDK Compatibility
+
+The MagicAPI AI Gateway is designed to work seamlessly with popular AI SDKs. You can use the official OpenAI SDK to interact with any supported provider by simply configuring the baseURL and adding the appropriate provider header.
+
+### Using with OpenAI's Official Node.js SDK
+
+```typescript
+import OpenAI from 'openai';
+
+// Configure the SDK to use MagicAPI Gateway
+const openai = new OpenAI({
+  apiKey: process.env.PROVIDER_API_KEY, // Use any provider's API key
+  baseURL: "http://localhost:3000/v1/", // Point to the gateway
+  defaultHeaders: {
+    "x-provider": "groq", // Specify the provider you want to use
+  },
+});
+
+// Make requests as usual
+const chatCompletion = await openai.chat.completions.create({
+  messages: [
+    { role: "system", content: "Write a poem" },
+    { role: "user", content: "" }
+  ],
+  model: "llama-3.1-8b-instant",
+  temperature: 1,
+  max_tokens: 100,
+  top_p: 1,
+  stream: false,
+});
+```
+
+You can easily switch between providers by changing the `x-provider` header and API key:
+
+```typescript
+// For OpenAI
+const openaiClient = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: "http://localhost:3000/v1/",
+  defaultHeaders: { "x-provider": "openai" },
+});
+
+// For Anthropic
+const anthropicClient = new OpenAI({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  baseURL: "http://localhost:3000/v1/",
+  defaultHeaders: { "x-provider": "anthropic" },
+});
+
+// For GROQ
+const groqClient = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "http://localhost:3000/v1/",
+  defaultHeaders: { "x-provider": "groq" },
+});
+
+// For Fireworks
+const fireworksClient = new OpenAI({
+  apiKey: process.env.FIREWORKS_API_KEY,
+  baseURL: "http://localhost:3000/v1/",
+  defaultHeaders: { "x-provider": "fireworks" },
+});
+
+// For Together AI
+const togetherClient = new OpenAI({
+  apiKey: process.env.TOGETHER_API_KEY,
+  baseURL: "http://localhost:3000/v1/",
+  defaultHeaders: { "x-provider": "together" },
+});
+```
+
+The gateway automatically handles the necessary transformations to ensure compatibility with each provider's API format while maintaining the familiar OpenAI SDK interface.
+
+
 ## Configuration
 
 The gateway can be configured using environment variables:
