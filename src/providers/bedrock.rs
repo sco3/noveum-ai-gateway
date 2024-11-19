@@ -10,12 +10,15 @@ use tracing::{debug, error, warn};
 use futures_util::StreamExt;
 use std::io::Read;
 use aws_event_stream_parser::{parse_message, Message};
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct BedrockProvider {
     base_url: String,
     region: String,
     buffer: Vec<u8>,
+    current_model: Arc<RwLock<String>>,
 }
 
 impl BedrockProvider {
@@ -26,6 +29,7 @@ impl BedrockProvider {
             base_url: format!("https://bedrock-runtime.{}.amazonaws.com", region),
             region,
             buffer: Vec::new(),
+            current_model: Arc::new(RwLock::new("amazon.titan-text-premier-v1:0".to_string())),
         }
     }
 
@@ -88,15 +92,26 @@ impl Provider for BedrockProvider {
         "bedrock"
     }
 
+    async fn before_request(&self, headers: &HeaderMap, body: &Bytes) -> Result<(), AppError> {
+        // Extract and set the model from the request body before any other processing
+        if let Ok(request_body) = serde_json::from_slice::<Value>(body) {
+            if let Some(model) = request_body["model"].as_str() {
+                debug!("Setting model from before_request: {}", model);
+                *self.current_model.write() = model.to_string();
+            }
+        }
+        Ok(())
+    }
+
+    fn transform_path(&self, path: &str) -> String {
+        let model = self.current_model.read();
+        debug!("Transforming path with model: {}", *model);
+        format!("/model/{}/converse-stream", *model)
+    }
+
     async fn prepare_request_body(&self, body: Bytes) -> Result<Bytes, AppError> {
         let request_body: Value = serde_json::from_slice(&body)?;
-        let model = request_body["model"]
-            .as_str()
-            .unwrap_or("amazon.titan-text-premier-v1:0")
-            .to_string();
-            
         let transformed_body = self.transform_request_body(request_body)?;
-        debug!("Using model from body: {}", model);
         Ok(Bytes::from(serde_json::to_vec(&transformed_body)?))
     }
 
@@ -117,21 +132,6 @@ impl Provider for BedrockProvider {
         }
 
         Ok(final_headers)
-    }
-
-    fn transform_path(&self, path: &str) -> String {
-        debug!("Transforming path: {}", path);
-        
-        let model = if path.contains("chat/completions") {
-            "amazon.titan-text-premier-v1:0"
-        } else if let Some(model) = path.split('/').last() {
-            model
-        } else {
-            "amazon.titan-text-premier-v1:0"
-        };
-        
-        debug!("Using model for path: {}", model);
-        format!("/model/{}/converse-stream", model)
     }
 
     fn requires_signing(&self) -> bool {

@@ -9,7 +9,6 @@ use tracing::{debug, error, info};
 use bytes::BytesMut;
 use axum::body::to_bytes;
 use crate::providers::Provider;
-use tracing::field::debug;
 
 use crate::{config::AppConfig, error::AppError, providers::create_provider};
 
@@ -29,6 +28,9 @@ pub async fn proxy_request_to_provider(
     let body_bytes = to_bytes(body, usize::MAX)
         .await
         .map_err(|e| AppError::AxumError(e.into()))?;
+
+    // Call before_request first to set up any provider state
+    provider.before_request(original_request.headers(), &body_bytes).await?;
 
     // Process headers and transform path
     let mut headers = provider.process_headers(original_request.headers())?;
