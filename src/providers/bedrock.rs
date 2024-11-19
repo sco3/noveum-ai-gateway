@@ -1,17 +1,17 @@
 use super::Provider;
 use crate::error::AppError;
 use async_trait::async_trait;
+use aws_event_stream_parser::{parse_message, Message};
 use axum::{
     body::{Body, Bytes},
     http::{HeaderMap, HeaderValue, Response, StatusCode},
 };
-use serde_json::{json, Value};
-use tracing::{debug, error, warn};
 use futures_util::StreamExt;
-use std::io::Read;
-use aws_event_stream_parser::{parse_message, Message};
 use parking_lot::RwLock;
+use serde_json::{json, Value};
+use std::io::Read;
 use std::sync::Arc;
+use tracing::{debug, error, warn};
 
 /// Constants for default values
 const DEFAULT_REGION: &str = "us-east-1";
@@ -33,7 +33,7 @@ impl BedrockProvider {
     pub fn new() -> Self {
         let region = DEFAULT_REGION.to_string();
         debug!("Initializing BedrockProvider with region: {}", region);
-        
+
         Self {
             base_url: format!("https://bedrock-runtime.{}.amazonaws.com", region),
             region,
@@ -50,20 +50,22 @@ impl BedrockProvider {
 
     fn transform_request_body(&self, body: Value) -> Result<Value, AppError> {
         debug!("Transforming request body: {:#?}", body);
-        
+
         // Return early if already in correct format
         if body.get("inferenceConfig").is_some() {
             return Ok(body);
         }
 
-        let messages = body.get("messages")
+        let messages = body
+            .get("messages")
             .and_then(Value::as_array)
             .ok_or_else(|| {
                 error!("Invalid request format: messages array not found");
                 AppError::InvalidRequestFormat
             })?;
 
-        let transformed_messages = messages.iter()
+        let transformed_messages = messages
+            .iter()
             .map(|msg| {
                 let content = msg["content"].as_str().unwrap_or_default();
                 json!({
@@ -114,8 +116,8 @@ impl BedrockProvider {
     }
 
     fn process_message<'a>(&self, data: &'a [u8]) -> Result<(&'a [u8], Vec<String>), AppError> {
-        let (rest, message) = parse_message(data)
-            .map_err(|e| AppError::EventStreamError(e.to_string()))?;
+        let (rest, message) =
+            parse_message(data).map_err(|e| AppError::EventStreamError(e.to_string()))?;
 
         let event_type = self.get_event_type(&message);
         let events = match event_type.as_deref() {
@@ -135,19 +137,26 @@ impl BedrockProvider {
     }
 
     fn get_event_type(&self, message: &Message) -> Option<String> {
-        message.headers.headers.iter()
+        message
+            .headers
+            .headers
+            .iter()
             .find(|h| h.key == ":event-type")
             .and_then(|h| match &h.value {
                 aws_event_stream_parser::HeaderValue::String(s) => Some(s.to_string()),
-                _ => None
+                _ => None,
             })
     }
 
     fn handle_content_block(&self, message: &Message) -> Result<Vec<String>, AppError> {
         let body_str = String::from_utf8(message.body.to_vec())?;
         let json: Value = serde_json::from_str(&body_str)?;
-        
-        if let Some(delta) = json.get("delta").and_then(|d| d.get("text")).and_then(Value::as_str) {
+
+        if let Some(delta) = json
+            .get("delta")
+            .and_then(|d| d.get("text"))
+            .and_then(Value::as_str)
+        {
             let response = self.create_delta_response(delta);
             Ok(vec![format!("data: {}\n\n", response.to_string())])
         } else {
@@ -158,10 +167,13 @@ impl BedrockProvider {
     fn handle_metadata(&self, message: &Message) -> Result<Vec<String>, AppError> {
         let body_str = String::from_utf8(message.body.to_vec())?;
         let json: Value = serde_json::from_str(&body_str)?;
-        
+
         if let Some(usage) = json.get("usage") {
             let final_message = self.create_final_response(usage);
-            Ok(vec![format!("data: {}\ndata: [DONE]\n\n", final_message.to_string())])
+            Ok(vec![format!(
+                "data: {}\ndata: [DONE]\n\n",
+                final_message.to_string()
+            )])
         } else {
             Ok(vec![])
         }
@@ -234,7 +246,7 @@ impl Provider for BedrockProvider {
 
     fn process_headers(&self, headers: &HeaderMap) -> Result<HeaderMap, AppError> {
         let mut final_headers = HeaderMap::new();
-        
+
         // Add standard headers
         final_headers.insert(
             http::header::CONTENT_TYPE,
@@ -262,11 +274,11 @@ impl Provider for BedrockProvider {
             .get("x-aws-region")
             .and_then(|h| h.to_str().ok())
             .unwrap_or(&self.region);
-        
+
         Some((
             access_key.to_string(),
             secret_key.to_string(),
-            region.to_string()
+            region.to_string(),
         ))
     }
 
@@ -275,31 +287,30 @@ impl Provider for BedrockProvider {
     }
 
     async fn process_response(&self, response: Response<Body>) -> Result<Response<Body>, AppError> {
-        if response.headers()
+        if response
+            .headers()
             .get(http::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            .map_or(false, |ct| ct.contains("application/vnd.amazon.eventstream"))
+            .map_or(false, |ct| {
+                ct.contains("application/vnd.amazon.eventstream")
+            })
         {
             debug!("Processing Bedrock event stream response");
-            
+
             // Create transformed stream
             let provider = self.clone();
             let stream = response
                 .into_body()
                 .into_data_stream()
-                .map(move |chunk| {
-                    match chunk {
-                        Ok(bytes) => {
-                            match provider.transform_bedrock_chunk(bytes) {
-                                Ok(transformed) => Ok(transformed),
-                                Err(e) => {
-                                    error!("Error transforming chunk: {}", e);
-                                    Err(std::io::Error::new(std::io::ErrorKind::Other, e))
-                                }
-                            }
+                .map(move |chunk| match chunk {
+                    Ok(bytes) => match provider.transform_bedrock_chunk(bytes) {
+                        Ok(transformed) => Ok(transformed),
+                        Err(e) => {
+                            error!("Error transforming chunk: {}", e);
+                            Err(std::io::Error::new(std::io::ErrorKind::Other, e))
                         }
-                        Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
-                    }
+                    },
+                    Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
                 });
 
             // Build response with transformed stream and all necessary headers
@@ -325,11 +336,17 @@ impl Provider for BedrockProvider {
             let mut response = response;
             let headers = response.headers_mut();
             headers.insert("access-control-allow-origin", HeaderValue::from_static("*"));
-            headers.insert("access-control-allow-methods", HeaderValue::from_static("POST, OPTIONS"));
-            headers.insert("access-control-allow-headers", 
-                HeaderValue::from_static("content-type, x-provider, x-aws-access-key-id, x-aws-secret-access-key, x-aws-region"));
-            headers.insert("access-control-expose-headers", HeaderValue::from_static("*"));
+            headers.insert(
+                "access-control-allow-methods",
+                HeaderValue::from_static("POST, OPTIONS"),
+            );
+            headers.insert("access-control-allow-headers",
+                           HeaderValue::from_static("content-type, x-provider, x-aws-access-key-id, x-aws-secret-access-key, x-aws-region"));
+            headers.insert(
+                "access-control-expose-headers",
+                HeaderValue::from_static("*"),
+            );
             Ok(response)
         }
     }
-} 
+}

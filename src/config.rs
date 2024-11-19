@@ -1,7 +1,7 @@
-use std::env;
 use num_cpus;
-use tracing::info;
+use std::env;
 use tracing::debug;
+use tracing::info;
 
 pub struct AppConfig {
     pub port: u16,
@@ -17,11 +17,11 @@ impl AppConfig {
     pub fn new() -> Self {
         info!("Loading environment configuration");
         dotenv::dotenv().ok();
-        
+
         // Optimize thread count based on CPU cores
         let cpu_count = num_cpus::get();
         debug!("Detected {} CPU cores", cpu_count);
-        
+
         let default_workers = if cpu_count <= 4 {
             cpu_count * 2
         } else {
@@ -57,9 +57,14 @@ impl AppConfig {
                 .unwrap_or(8 * 1024), // 8KB default
         };
 
-        info!("Configuration loaded: port={}, host={}", config.port, config.host);
-        debug!("Advanced settings: workers={}, max_conn={}, buffer_size={}", 
-            config.worker_threads, config.max_connections, config.buffer_size);
+        info!(
+            "Configuration loaded: port={}, host={}",
+            config.port, config.host
+        );
+        debug!(
+            "Advanced settings: workers={}, max_conn={}, buffer_size={}",
+            config.worker_threads, config.max_connections, config.buffer_size
+        );
 
         config
     }

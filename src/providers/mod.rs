@@ -2,7 +2,7 @@ use crate::error::AppError;
 use async_trait::async_trait;
 use axum::{
     body::{Body, Bytes},
-    http::{HeaderMap, Request, Response},
+    http::{HeaderMap, Response},
 };
 use tracing::error;
 
@@ -67,18 +67,18 @@ pub trait Provider: Send + Sync {
 }
 
 mod anthropic;
+mod bedrock;
 mod fireworks;
 mod groq;
 mod openai;
 mod together;
-mod bedrock;
 
 pub use anthropic::AnthropicProvider;
+pub use bedrock::BedrockProvider;
 pub use fireworks::FireworksProvider;
 pub use groq::GroqProvider;
 pub use openai::OpenAIProvider;
 pub use together::TogetherProvider;
-pub use bedrock::BedrockProvider;
 
 /// Factory function to create provider instances
 pub fn create_provider(provider_name: &str) -> Result<Box<dyn Provider>, AppError> {

@@ -43,7 +43,9 @@ impl Provider for TogetherProvider {
         {
             // Validate token format
             if !auth.starts_with("Bearer ") {
-                error!("Invalid authorization format for Together request - must start with 'Bearer '");
+                error!(
+                    "Invalid authorization format for Together request - must start with 'Bearer '"
+                );
                 return Err(AppError::InvalidHeader);
             }
 

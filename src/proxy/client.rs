@@ -1,12 +1,12 @@
+use crate::config::AppConfig;
 use once_cell::sync::Lazy;
 use std::time::Duration;
-use crate::config::AppConfig;
-use tracing::info;
 use tracing::debug;
+use tracing::info;
 
 pub fn create_client(config: &AppConfig) -> reqwest::Client {
     info!("Creating HTTP client with optimized settings");
-    
+
     reqwest::Client::builder()
         .pool_max_idle_per_host(config.max_connections)
         .pool_idle_timeout(Duration::from_secs(30))

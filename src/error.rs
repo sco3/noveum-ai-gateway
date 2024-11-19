@@ -1,13 +1,13 @@
+use aws_sigv4::http_request::SigningError;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
-use http::status::InvalidStatusCode;
 use http::header::InvalidHeaderValue;
+use http::status::InvalidStatusCode;
 use serde_json::json;
 use std::{convert::Infallible, io};
-use aws_sigv4::http_request::SigningError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -61,7 +61,6 @@ pub enum AppError {
 
     #[error("UTF-8 conversion error: {0}")]
     Utf8Error(#[from] std::string::FromUtf8Error),
-
 }
 
 impl IntoResponse for AppError {
@@ -84,7 +83,9 @@ impl IntoResponse for AppError {
                 StatusCode::BAD_GATEWAY,
                 "Invalid status code from provider".to_string(),
             ),
-            AppError::InvalidHeader => (StatusCode::BAD_REQUEST, "Invalid header value".to_string()),
+            AppError::InvalidHeader => {
+                (StatusCode::BAD_REQUEST, "Invalid header value".to_string())
+            }
             AppError::UnsupportedProvider => (
                 StatusCode::BAD_REQUEST,
                 "Unsupported AI provider".to_string(),
@@ -97,10 +98,9 @@ impl IntoResponse for AppError {
                 StatusCode::BAD_REQUEST,
                 "Invalid request format".to_string(),
             ),
-            AppError::UnsupportedModel => (
-                StatusCode::BAD_REQUEST,
-                "Unsupported model".to_string(),
-            ),
+            AppError::UnsupportedModel => {
+                (StatusCode::BAD_REQUEST, "Unsupported model".to_string())
+            }
             AppError::JsonError(e) => (
                 StatusCode::BAD_REQUEST,
                 format!("JSON parsing error: {}", e),
@@ -117,10 +117,7 @@ impl IntoResponse for AppError {
                 StatusCode::BAD_REQUEST,
                 format!("Invalid header value: {}", e),
             ),
-            AppError::RequestError(e) => (
-                StatusCode::BAD_REQUEST,
-                format!("Request error: {}", e),
-            ),
+            AppError::RequestError(e) => (StatusCode::BAD_REQUEST, format!("Request error: {}", e)),
             AppError::EventStreamError(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to parse event stream: {}", e),
