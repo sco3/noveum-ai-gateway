@@ -1,16 +1,18 @@
 # OpenAI Provider Integration
 
 ## Overview
-The OpenAI provider supports all OpenAI models and maintains compatibility with the official OpenAI API specification.
+The OpenAI provider supports a diverse set of models with different capabilities and price points. You can also make customizations to our models for your specific use case with fine-tuning.
 
 ## Supported Models
-- GPT-4 Turbo
-- GPT-4
-- GPT-3.5-turbo
-- GPT-3.5-turbo-16k
-- Text embedding models
-- DALL-E 3
-- Whisper
+
+### Models Overview
+- **GPT-4o**: Our high-intelligence flagship model for complex, multi-step tasks
+- **GPT-4o mini**: Our affordable and intelligent small model for fast, lightweight tasks
+- **o1-preview and o1-mini**: Language models trained with reinforcement learning to perform complex reasoning.
+- **GPT-4 Turbo and GPT-4**: The previous set of high-intelligence models
+- **GPT-3.5 Turbo**: A fast, inexpensive model for simple tasks
+- **Embeddings**: A set of models that can convert text into a numerical form
+- **Moderation**: A fine-tuned model that can detect whether text may be sensitive or unsafe
 
 ## Configuration
 
@@ -70,17 +72,16 @@ const openai = new OpenAI({
   baseURL: "http://localhost:3000/v1/",
   defaultHeaders: { "x-provider": "openai" }
 });
-```
 
-### Python
-```python
-from openai import OpenAI
+async function getChatCompletion() {
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: "Hello!" }]
+  });
+  console.log(response.data);
+}
 
-client = OpenAI(
-    api_key="your-api-key",
-    base_url="http://localhost:3000/v1/",
-    default_headers={"x-provider": "openai"}
-)
+getChatCompletion();
 ```
 
 ## Error Handling
@@ -108,59 +109,10 @@ client = OpenAI(
    - Batch requests when possible
    - Implement caching for repeated requests
 
-## Examples
-
-### Function Calling
-```json
-{
-  "model": "gpt-4",
-  "messages": [{"role": "user", "content": "What's the weather?"}],
-  "functions": [{
-    "name": "get_weather",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "location": {"type": "string"},
-        "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]}
-      }
-    }
-  }]
-}
-```
-
-### Vision API
-```json
-{
-  "model": "gpt-4-vision-preview",
-  "messages": [
-    {
-      "role": "user",
-      "content": [
-        {
-          "type": "text",
-          "text": "What's in this image?"
-        },
-        {
-          "type": "image_url",
-          "image_url": "https://example.com/image.jpg"
-        }
-      ]
-    }
-  ]
-}
-```
-
 ## Monitoring
 
-### Available Metrics
+### Available Metrics (Coming Soon)
 - Request latency
 - Token usage
 - Error rates
 - Request volume
-
-### Prometheus Metrics
-```bash
-# HELP openai_requests_total Total number of requests to OpenAI
-# TYPE openai_requests_total counter
-openai_requests_total{model="gpt-4"} 100
-``` 

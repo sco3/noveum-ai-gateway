@@ -1,76 +1,109 @@
 # GROQ Provider Integration
 
 ## Overview
-The GROQ provider offers OpenAI-compatible API access to GROQ's high-performance inference infrastructure.
-
-## Base Configuration
-```rust:src/providers/groq.rs
-startLine: 13
-endLine: 15
-```
+GROQ provider support in MagicAPI AI Gateway enables high-performance access to GROQ's inference infrastructure through an OpenAI-compatible API interface.
 
 ## Supported Models
-- Mixtral 8x7B
-- LLaMA 2 70B
-- Custom models (check GROQ's documentation)
+
+| Model ID                               | Developer   | Context Window (tokens) | Max Tokens |
+|----------------------------------------|-------------|-------------------------|------------|
+| gemma2-9b-it                           | Google      | 8,192                   | -          |
+| gemma-7b-it                            | Google      | 8,192                   | -          |
+| llama3-groq-70b-8192-tool-use-preview  | Groq        | 8,192                   | -          |
+| llama3-groq-8b-8192-tool-use-preview   | Groq        | 8,192                   | -          |
+| llama-3.1-70b-versatile                | Meta        | 128,000                 | 32,768     |
+| llama-3.1-70b-specdec                  | Meta        | 128,000                 | 8,192      |
+| llama-3.1-8b-instant                   | Meta        | 128,000                 | 8,192      |
+| llama-3.2-1b-preview                   | Meta        | 128,000                 | 8,192      |
+| llama-3.2-3b-preview                   | Meta        | 128,000                 | 8,192      |
+| llama-3.2-11b-vision-preview           | Meta        | 128,000                 | 8,192      |
+| llama-3.2-90b-vision-preview           | Meta        | 128,000                 | 8,192      |
+| llama-guard-3-8b                       | Meta        | 8,192                   | -          |
+| llama3-70b-8192                        | Meta        | 8,192                   | -          |
+| llama3-8b-8192                         | Meta        | 8,192                   | -          |
+| mixtral-8x7b-32768                     | Mistral     | 32,768                  | -          |
 
 ## Configuration
 
 ### Environment Variables
 ```bash
+# In your .env file
 GROQ_API_KEY=gsk_...
 ```
 
-### Headers
-```bash
-Authorization: Bearer gsk_...
-x-provider: groq
-Content-Type: application/json
-```
+## API Examples
 
-## API Endpoints
-
-### Chat Completions
+### Chat Completions (cURL)
 ```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
+curl http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "x-provider: groq" \
   -H "Authorization: Bearer $GROQ_API_KEY" \
-  -d '{
-    "model": "mixtral-8x7b-32768",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'
-```
-
-### Streaming
-```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
-  -H "Content-Type: application/json" \
   -H "x-provider: groq" \
-  -H "Authorization: Bearer $GROQ_API_KEY" \
   -d '{
     "model": "mixtral-8x7b-32768",
     "messages": [{"role": "user", "content": "Hello!"}],
-    "stream": true
+    "temperature": 0.7,
+    "max_tokens": 500
   }'
 ```
 
-## SDK Integration
-
-### Node.js (OpenAI SDK)
+### OpenAI SDK Integration
 ```typescript
 import OpenAI from 'openai';
 
-const groq = new OpenAI({
+const client = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
-  baseURL: "http://localhost:3000/v1/",
+  baseURL: "http://localhost:3000/v1",
   defaultHeaders: { "x-provider": "groq" }
 });
 
-const response = await groq.chat.completions.create({
+async function main() {
+  const completion = await client.chat.completions.create({
+    model: "mixtral-8x7b-32768",
+    messages: [{ role: "user", content: "Hello!" }],
+    temperature: 0.7,
+    max_tokens: 500,
+    stream: false
+  });
+  
+  console.log(completion.choices[0].message);
+}
+```
+
+### Streaming Example
+```typescript
+const stream = await client.chat.completions.create({
   model: "mixtral-8x7b-32768",
-  messages: [{ role: "user", content: "Hello!" }]
+  messages: [{ role: "user", content: "Hello!" }],
+  stream: true
 });
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content || '');
+}
+```
+
+## Response Format
+```json
+{
+  "id": "chatcmpl-f51b2cd2-bef7-417e-964e-a08f0b513c22",
+  "object": "chat.completion",
+  "created": 1730241104,
+  "model": "mixtral-8x7b-32768",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "Hello! How can I help you today?"
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {
+    "prompt_tokens": 18,
+    "completion_tokens": 556,
+    "total_tokens": 574
+  }
+}
 ```
 
 ## Error Handling
@@ -81,9 +114,21 @@ const response = await groq.chat.completions.create({
 | 429 | Rate limit exceeded | Implement backoff strategy |
 | 500 | Server error | Check server logs |
 
-## Authentication
-The provider implements strict authentication validation:
-```rust:src/providers/groq.rs
-startLine: 40
-endLine: 55
-``` 
+## Provider Implementation
+The GROQ provider is implemented in `src/providers/groq.rs`. It handles authentication validation and request processing through the Provider trait implementation:
+
+```rust
+impl Provider for GroqProvider {
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    fn name(&self) -> &str {
+        "groq"
+    }
+
+    fn process_headers(&self, original_headers: &HeaderMap) -> Result<HeaderMap, AppError> {
+        // Header processing implementation
+    }
+}
+```

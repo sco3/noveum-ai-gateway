@@ -26,12 +26,16 @@ endLine: 35
 ```
 
 ## Supported Models
-- claude-3-opus-20240229
+Last updated: November 19, 2024
+
+### Claude 3.5 Series
+- claude-3-5-sonnet-20241022 (alias: claude-3-5-sonnet-latest)
+- claude-3-5-haiku-20241022 (alias: claude-3-5-haiku-latest)
+
+### Claude 3 Series
+- claude-3-opus-20240229 (alias: claude-3-opus-latest)
 - claude-3-sonnet-20240229
-- claude-3-haiku-20240229
-- claude-2.1
-- claude-2.0
-- claude-instant-1.2
+- claude-3-haiku-20240307
 
 ## Examples
 
@@ -58,6 +62,22 @@ curl -X POST http://localhost:3000/v1/chat/completions \
     "messages": [{"role": "user", "content": "Hello!"}],
     "stream": true
   }'
+```
+
+### OpenAI SDK Compatibility
+```typescript
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  baseURL: "http://localhost:3000/v1",
+  defaultHeaders: { "x-provider": "anthropic" }
+});
+
+const response = await openai.chat.completions.create({
+  model: "claude-3-5-sonnet-latest",
+  messages: [{ role: "user", content: "Hello!" }]
+});
 ```
 
 ## SDK Integration
@@ -108,13 +128,14 @@ client = Anthropic(
 
 ## Limitations
 
-1. **Model Availability**
+1. **Rate Limits**
+   - No rate limiting is performed by the gateway
+   - Anthropic's native rate limits apply directly
+   - Refer to [Anthropic's rate limit documentation](https://docs.anthropic.com/claude/reference/rate-limits)
+
+2. **Model Availability**
    - Not all Claude models may be available
    - Check Anthropic's documentation for current model list
-
-2. **Rate Limits**
-   - Follows Anthropic's rate limiting
-   - Implement appropriate retry logic
 
 ## Additional Resources
 

@@ -42,140 +42,43 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 ```
 
-## Configuration File
-You can also use a `config.toml` file:
+## Providers
 
-```toml
-[server]
-port = 3000
-host = "0.0.0.0"
-max_connections = 100
+This section details the configuration and usage of various API providers integrated into the system. Each provider has specific requirements and configurations that must be adhered to for successful integration.
 
-[security]
-enable_cors = true
-allowed_origins = ["https://example.com"]
+### OpenAI
+- **Base URL**: `https://api.openai.com`
+- **Authentication**: Requires `x-magicapi-api-key` or `Authorization` header with a Bearer token.
+- **Headers**: Automatically sets `Content-Type` to `application/json`.
 
-[providers]
-default = "openai"
+### Anthropic
+- **Base URL**: `https://api.anthropic.com`
+- **Authentication**: Requires `Authorization` header with a Bearer token, converted to `x-api-key`.
+- **Headers**: Sets `Content-Type` to `application/json` and `anthropic-version` to `2023-06-01`.
+- **Path Transformation**: Transforms `/chat/completions` to `/v1/messages`.
 
-[providers.openai]
-api_key = "sk-..."
-timeout = 30
+### Groq
+- **Base URL**: `https://api.groq.com/openai`
+- **Authentication**: Requires `Authorization` header with a Bearer token.
+- **Headers**: Sets `Content-Type` to `application/json`.
 
-[providers.anthropic]
-api_key = "sk-ant-..."
-timeout = 30
-```
+### Fireworks
+- **Base URL**: `https://api.fireworks.ai/inference/v1`
+- **Authentication**: Requires `Authorization` header with a Bearer token.
+- **Headers**: Sets `Content-Type` and `Accept` to `application/json`.
+- **Path Transformation**: Strips `/v1` prefix from paths.
 
-## Rate Limiting
+### Together
+- **Base URL**: `https://api.together.xyz`
+- **Authentication**: Requires `Authorization` header with a Bearer token.
+- **Headers**: Sets `Content-Type` to `application/json`.
 
-### Global Rate Limits
-```toml
-[rate_limiting]
-requests_per_minute = 1000
-burst_size = 50
-```
+### AWS Bedrock
+- **Base URL**: `https://bedrock-runtime.{region}.amazonaws.com`
+- **Authentication**: Requires AWS signing with `x-aws-access-key-id`, `x-aws-secret-access-key`, and `x-aws-region`.
+- **Headers**: Sets `Content-Type` to `application/json` and preserves AWS-specific headers.
+- **Path Transformation**: Transforms paths to `/model/{model}/converse-stream`.
+- **Request Body Transformation**: Converts request body to include `inferenceConfig`.
+- **Response Processing**: Handles AWS event stream responses and adds CORS headers.
 
-### Per-Provider Rate Limits
-```toml
-[rate_limiting.openai]
-requests_per_minute = 500
-burst_size = 25
-
-[rate_limiting.anthropic]
-requests_per_minute = 300
-burst_size = 15
-```
-
-## Logging Configuration
-
-### Log Levels
-```bash
-RUST_LOG=error    # Only errors
-RUST_LOG=warn     # Warnings and errors
-RUST_LOG=info     # Normal logging (recommended)
-RUST_LOG=debug    # Verbose logging
-RUST_LOG=trace    # Very verbose logging
-```
-
-### Custom Logging Format
-```bash
-RUST_LOG_FORMAT="timestamp,level,target"
-```
-
-## Monitoring & Metrics
-
-### Prometheus Metrics
-```toml
-[metrics]
-enable_prometheus = true
-prometheus_path = "/metrics"
-```
-
-### Health Checks
-```toml
-[health]
-enable_health_check = true
-health_check_path = "/health"
-```
-
-## Cache Configuration
-
-### Redis Cache
-```toml
-[cache]
-enable_redis = true
-redis_url = "redis://localhost:6379"
-cache_ttl = 3600  # seconds
-```
-
-## SSL/TLS Configuration
-
-### Certificate Settings
-```toml
-[tls]
-enable_tls = true
-cert_path = "/path/to/cert.pem"
-key_path = "/path/to/key.pem"
-```
-
-## Advanced Configuration
-
-### Connection Pooling
-```toml
-[connection_pool]
-max_idle_per_host = 100
-max_lifetime = 3600
-idle_timeout = 300
-```
-
-### Retry Settings
-```toml
-[retry]
-max_retries = 3
-initial_backoff = 1000  # milliseconds
-max_backoff = 30000    # milliseconds
-```
-
-## Environment-Specific Configurations
-
-### Development
-```bash
-RUST_LOG=debug
-ENABLE_CORS=true
-ALLOWED_ORIGINS="*"
-```
-
-### Production
-```bash
-RUST_LOG=info
-ENABLE_CORS=true
-ALLOWED_ORIGINS="https://api.production.com"
-```
-
-### Testing
-```bash
-RUST_LOG=debug
-TEST_MODE=true
-MOCK_RESPONSES=true
-``` 
+Ensure that the environment variables for each provider are correctly set in your configuration files, as shown in the `configuration.md` file. This includes API keys and any other necessary credentials.
