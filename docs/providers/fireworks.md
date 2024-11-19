@@ -119,179 +119,174 @@ const response = await client.chat.completions.create({
    - 32,768 Context  
    - Serverless  
 
-7. **Llama 3.2 11B Vision Instruct**  
-   - $0.20/M Tokens  
-   - 131,072 Context  
-   - Serverless  
-
-8. **Llama Guard 7B**  
+7. **Llama Guard 7B**  
    - $0.20/M Tokens  
    - 4,096 Context  
 
-9. **Zephyr 7B Beta**  
+8. **Zephyr 7B Beta**  
    - $0.20/M Tokens  
    - 4,096 Context  
 
-10. **Qwen2 72B Instruct**  
+9. **Qwen2 72B Instruct**  
     - $0.90/M Tokens  
     - 32,768 Context  
 
-11. **Mixtral 8x22B Instruct v0.1**  
+10. **Mixtral 8x22B Instruct v0.1**  
     - $0.90/M Tokens  
     - 65,536 Context  
 
-12. **CodeGemma 7B**  
+11. **CodeGemma 7B**  
     - $0.20/M Tokens  
     - 8,192 Context  
 
-13. **Mixtral MoE 8x7B Instruct**  
+12. **Mixtral MoE 8x7B Instruct**  
     - $0.50/M Tokens  
     - 32,768 Context  
     - Serverless  
 
-14. **DeepSeek Coder 1.3B Base**  
+13. **DeepSeek Coder 1.3B Base**  
     - $0.20/M Tokens  
     - 16,384 Context  
 
-15. **Yi-Large**  
+14. **Yi-Large**  
     - $3.00/M Tokens  
     - 32,768 Context  
     - Serverless  
 
-16. **Hermes 2 Pro Mistral 7B**  
+15. **Hermes 2 Pro Mistral 7B**  
     - $0.20/M Tokens  
 
-17. **Llama 3 70B Instruct**  
+16. **Llama 3 70B Instruct**  
     - $0.90/M Tokens  
     - 8,192 Context  
     - Serverless  
 
-18. **Toppy M 7B**  
+17. **Toppy M 7B**  
     - $0.20/M Tokens  
     - 32,768 Context  
 
-19. **Nous Hermes Llama2 7B**  
+18. **Nous Hermes Llama2 7B**  
     - $0.20/M Tokens  
     - 4,096 Context  
 
-20. **Deepseek Coder 33B Instruct**  
+19. **Deepseek Coder 33B Instruct**  
     - $0.90/M Tokens  
     - 16,384 Context  
 
-21. **Chronos Hermes 13B v2**  
+20. **Chronos Hermes 13B v2**  
     - $0.20/M Tokens  
     - 4,096 Context  
 
-22. **Phind CodeLlama 34B v2**  
+21. **Phind CodeLlama 34B v2**  
     - $0.90/M Tokens  
     - 16,384 Context  
 
-23. **Nous Hermes Llama2 70B**  
+22. **Nous Hermes Llama2 70B**  
     - $0.90/M Tokens  
     - 4,096 Context  
 
-24. **Nous Hermes 2 - Mixtral 8x7B - DPO**  
+23. **Nous Hermes 2 - Mixtral 8x7B - DPO**  
     - $0.50/M Tokens  
     - 32,768 Context  
 
-25. **Qwen2.5 Math 72B Instruct**  
+24. **Qwen2.5 Math 72B Instruct**  
     - $0.90/M Tokens  
     - 4,096 Context  
 
-26. **Llama 2 70B Chat**  
+25. **Llama 2 70B Chat**  
     - $0.90/M Tokens  
     - 4,096 Context  
 
-27. **Mistral 7B Instruct v0.2**  
+26. **Mistral 7B Instruct v0.2**  
     - $0.20/M Tokens  
     - 32,768 Context  
 
-28. **StarCoder 7B**  
+27. **StarCoder 7B**  
     - $0.20/M Tokens  
     - 8,192 Context  
     - Serverless  
 
-29. **Code Llama 7B Python**  
+28. **Code Llama 7B Python**  
     - $0.20/M Tokens  
     - 32,768 Context  
 
-30. **StarCoder2 15B**  
+29. **StarCoder2 15B**  
     - $0.20/M Tokens  
     - 16,384 Context  
 
-31. **Qwen2.5 14B Instruct**  
+30. **Qwen2.5 14B Instruct**  
     - $0.20/M Tokens  
     - 32,768 Context  
 
-32. **Code Llama 34B Instruct**  
+31. **Code Llama 34B Instruct**  
     - $0.90/M Tokens  
     - 32,768 Context  
 
-33. **Mixtral Moe 8x22B**  
+32. **Mixtral Moe 8x22B**  
     - $0.90/M Tokens  
     - 65,536 Context  
 
-34. **DeepSeek V2 Lite Chat**  
+33. **DeepSeek V2 Lite Chat**  
     - 163,840 Context  
 
-35. **Phi 3.5 Vision Instruct**  
+34. **Phi 3.5 Vision Instruct**  
     - 32,064 Context  
     - Serverless  
 
-36. **Yi 6B**  
+35. **Yi 6B**  
     - $0.20/M Tokens  
     - 4,096 Context  
 
-37. **MythoMax L2 13B**  
+36. **MythoMax L2 13B**  
     - $0.20/M Tokens  
     - 4,096 Context  
 
-38. **StarCoder2 7B**  
+37. **StarCoder2 7B**  
     - $0.20/M Tokens  
     - 16,384 Context  
 
-39. **Code Llama 70B Instruct**  
+38. **Code Llama 70B Instruct**  
     - $0.90/M Tokens  
     - 4,096 Context  
 
-40. **FireLLaVA-13B**  
+39. **FireLLaVA-13B**  
     - $0.20/M Tokens  
     - 4,096 Context  
 
-41. **Stable Code 3B**  
+40. **Stable Code 3B**  
     - $0.20/M Tokens  
 
-42. **Deepseek Coder V2 Lite**  
+41. **Deepseek Coder V2 Lite**  
     - 163,840 Context  
 
-43. **Qwen2.5-Coder-7B-Instruct**  
+42. **Qwen2.5-Coder-7B-Instruct**  
     - $0.20/M Tokens  
     - 32,768 Context  
 
-44. **Qwen2.5 7B**  
+43. **Qwen2.5 7B**  
     - $0.20/M Tokens  
     - 131,072 Context  
 
-45. **Llama 3.1 Nemotron 70B**  
+44. **Llama 3.1 Nemotron 70B**  
     - $0.90/M Tokens  
     - 131,072 Context  
 
-46. **Llama 3.2 3B**  
+45. **Llama 3.2 3B**  
     - $0.20/M Tokens  
     - 131,072 Context  
 
-47. **Capybara 34B**  
+46. **Capybara 34B**  
     - $0.90/M Tokens  
     - 200,000 Context  
 
-48. **Phind CodeLlama 34B Python v1**  
+47. **Phind CodeLlama 34B Python v1**  
     - $0.90/M Tokens  
     - 16,384 Context  
 
-49. **Pythia 12B**  
+48. **Pythia 12B**  
     - $0.20/M Tokens  
     - 2,048 Context  
 
-50. **FireFunction V1**  
+49. **FireFunction V1**  
     - 32,768 Context  
     - Serverless  

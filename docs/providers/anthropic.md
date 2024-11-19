@@ -13,11 +13,22 @@ x-provider: anthropic
 
 ## API Compatibility
 
-The provider automatically transforms OpenAI-compatible requests to Anthropic's format:
+The provider automatically transforms OpenAI-compatible requests to Anthropic's format. Below is a code snippet from the `anthropic.rs` file that shows how the path transformation is handled:
 
-```typescript:src/providers/anthropic.rs
-startLine: 29
-endLine: 35
+```rust:src/providers/anthropic.rs
+impl AnthropicProvider {
+    // ... existing code ...
+
+    fn transform_path(&self, path: &str) -> String {
+        if path.contains("/chat/completions") {
+            "/v1/messages".to_string()
+        } else {
+            path.to_string()
+        }
+    }
+
+    // ... existing code ...
+}
 ```
 
 ## Supported Models

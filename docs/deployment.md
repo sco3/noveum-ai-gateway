@@ -47,6 +47,9 @@ spec:
       labels:
         app: magicapi-gateway
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
       containers:
       - name: magicapi-gateway
         image: magicapi/ai-gateway:latest
@@ -55,8 +58,41 @@ spec:
         env:
         - name: RUST_LOG
           value: "info"
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
 ```
 
++```yaml
++apiVersion: v1
++kind: Service
++metadata:
++  name: magicapi-gateway
++spec:
++  selector:
++    app: magicapi-gateway
++  ports:
++    - protocol: TCP
++      port: 80
++      targetPort: 3000
++  type: ClusterIP
++```
 
 ## Production Considerations
 
@@ -67,6 +103,12 @@ spec:
 - [ ] Enable rate limiting
 - [ ] Configure proper logging
 - [ ] Set up monitoring and alerts
+- [ ] Configure AWS IAM roles with least privilege
+- [ ] Enable AWS CloudTrail for API activity logging
+- [ ] Set up AWS VPC endpoints for Bedrock
+- [ ] Configure AWS KMS for encryption
+- [ ] Implement AWS WAF rules
+
 
 ## Scaling Strategies
 
