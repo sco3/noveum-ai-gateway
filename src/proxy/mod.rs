@@ -124,10 +124,8 @@ async fn process_response(
     let status = StatusCode::from_u16(response.status().as_u16())?;
     debug!("Processing response with status: {}", status);
     
-    // Pre-allocate headers map
     let mut response_headers = HeaderMap::with_capacity(response.headers().len());
     
-    // Batch process headers
     for (name, value) in response.headers() {
         if let (Ok(header_name), Ok(v)) = (
             http::HeaderName::from_bytes(name.as_ref()),
@@ -144,27 +142,26 @@ async fn process_response(
         .map_or(false, |ct| ct.contains("text/event-stream"))
     {
         info!("Processing streaming response");
-        debug!("Setting up stream with buffer size: {}", config.buffer_size);
         
-        let stream = response.bytes_stream().map(move |result| {
-            match result {
-                Ok(bytes) => {
-                    let mut buffer = BytesMut::with_capacity(config.buffer_size);
-                    buffer.extend_from_slice(&bytes);
-                    Ok(buffer.freeze())
+        // Create a stream that processes chunks immediately
+        let stream = response
+            .bytes_stream()
+            .map(move |result| {
+                match result {
+                    Ok(bytes) => Ok(bytes),
+                    Err(e) => {
+                        error!("Stream error: {}", e);
+                        Err(std::io::Error::new(std::io::ErrorKind::Other, e))
+                    }
                 }
-                Err(e) => {
-                    error!("Stream error: {}", e);
-                    Err(std::io::Error::new(std::io::ErrorKind::Other, e))
-                }
-            }
-        });
+            });
 
         let mut response_builder = Response::builder()
             .status(status)
             .header("content-type", "text/event-stream")
             .header("cache-control", "no-cache")
-            .header("connection", "keep-alive");
+            .header("connection", "keep-alive")
+            .header("transfer-encoding", "chunked");
 
         // Add all headers from response_headers
         for (key, value) in response_headers {
@@ -183,7 +180,6 @@ async fn process_response(
         
         let mut response_builder = Response::builder().status(status);
         
-        // Add all headers from response_headers
         for (key, value) in response_headers {
             if let Some(key) = key {
                 response_builder = response_builder.header(key, value);

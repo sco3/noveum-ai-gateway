@@ -220,8 +220,8 @@ impl Provider for BedrockProvider {
 impl BedrockProvider {
     fn transform_bedrock_chunk(&self, chunk: Bytes) -> Result<Bytes, AppError> {
         debug!("Received chunk of size: {}", chunk.len());
-        let mut response_events = Vec::new();
         let mut remaining = chunk.as_ref();
+        let mut response_events = Vec::new();
 
         while !remaining.is_empty() {
             match parse_message(remaining) {
@@ -231,25 +231,21 @@ impl BedrockProvider {
                             .find(|h| h.key == ":event-type")
                             .map(|h| &h.value));
                     
-                    // Update remaining bytes for next iteration
                     remaining = rest;
 
-                    // Get event type and content type from headers
                     let event_type = message.headers.headers.iter()
-                        .find(|h| h.key == ":event-type")  // Note the colon prefix
+                        .find(|h| h.key == ":event-type")
                         .and_then(|h| match &h.value {
                             aws_event_stream_parser::HeaderValue::String(s) => Some(s.as_str()),
                             _ => None
                         })
                         .unwrap_or_default();
 
-                    // Process the message based on event type
                     match event_type {
                         "contentBlockDelta" => {
                             if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
                                 if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
                                     if let Some(delta) = json.get("delta").and_then(|d| d.get("text")).and_then(|t| t.as_str()) {
-                                        debug!("Found delta text: {}", delta);
                                         let openai_format = json!({
                                             "id": "chatcmpl-bedrock",
                                             "object": "chat.completion.chunk",
@@ -264,27 +260,14 @@ impl BedrockProvider {
                                             }]
                                         });
 
-                                        let formatted = format!("data: {}\n\n", openai_format.to_string());
-                                        response_events.push(Bytes::from(formatted));
+                                        response_events.push(format!("data: {}\n\n", openai_format.to_string()));
                                     }
                                 }
                             }
                         },
-                        // "messageStop" | "contentBlockStop" => {
-                        //     if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
-                        //         if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
-                        //             if json.get("stopReason").is_some() {
-                        //                 debug!("Found stop reason");
-                        //                 response_events.push(Bytes::from("data: [DONE]\n\n"));
-                        //             }
-                        //         }
-                        //     }
-                        // },
                         "metadata" => {
                             if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
                                 if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
-                                    debug!("Processing metadata: {}", json);
-                                    // Create final message with usage information
                                     if let Some(usage) = json.get("usage") {
                                         let final_message = json!({
                                             "id": "chatcmpl-bedrock",
@@ -298,9 +281,8 @@ impl BedrockProvider {
                                             }],
                                             "usage": usage
                                         });
-                                        let formatted = format!("data: {}\n\n", final_message.to_string());
-                                        response_events.push(Bytes::from(formatted));
-                                        response_events.push(Bytes::from("data: [DONE]\n\n"));
+                                        response_events.push(format!("data: {}\ndata: [DONE]\n\n", 
+                                            final_message.to_string()));
                                     }
                                 }
                             }
@@ -310,7 +292,6 @@ impl BedrockProvider {
                         }
                     }
 
-                    // Validate message checksum
                     if !message.valid() {
                         warn!("Invalid message checksum");
                     }
@@ -322,12 +303,7 @@ impl BedrockProvider {
             }
         }
 
-        if response_events.is_empty() {
-            debug!("No events processed, returning empty response");
-            Ok(Bytes::new())
-        } else {
-            debug!("Returning {} processed events", response_events.len());
-            Ok(Bytes::from(response_events.concat()))
-        }
+        // Join all events and return as a single chunk
+        Ok(Bytes::from(response_events.join("")))
     }
 } 
