@@ -13,72 +13,189 @@ use aws_event_stream_parser::{parse_message, Message};
 use parking_lot::RwLock;
 use std::sync::Arc;
 
+/// Constants for default values
+const DEFAULT_REGION: &str = "us-east-1";
+const DEFAULT_MODEL: &str = "amazon.titan-text-premier-v1:0";
+const DEFAULT_FALLBACK_MODEL: &str = "mistral.mistral-7b-instruct-v0:2";
+const DEFAULT_MAX_TOKENS: u64 = 1000;
+const DEFAULT_TEMPERATURE: f64 = 0.7;
+const DEFAULT_TOP_P: f64 = 1.0;
+
+/// BedrockProvider handles AWS Bedrock API integration
 #[derive(Clone)]
 pub struct BedrockProvider {
     base_url: String,
     region: String,
-    buffer: Vec<u8>,
     current_model: Arc<RwLock<String>>,
 }
 
 impl BedrockProvider {
     pub fn new() -> Self {
-        let region = "us-east-1".to_string();
+        let region = DEFAULT_REGION.to_string();
         debug!("Initializing BedrockProvider with region: {}", region);
+        
         Self {
             base_url: format!("https://bedrock-runtime.{}.amazonaws.com", region),
             region,
-            buffer: Vec::new(),
-            current_model: Arc::new(RwLock::new("amazon.titan-text-premier-v1:0".to_string())),
+            current_model: Arc::new(RwLock::new(DEFAULT_MODEL.to_string())),
         }
     }
 
     fn get_model_name(&self, path: &str) -> String {
-        if let Some(model) = path.split('/').last() {
-            model.to_string()
-        } else {
-            "amazon.titan-embed-text-v1".to_string()
-        }
+        path.split('/')
+            .last()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| DEFAULT_FALLBACK_MODEL.to_string())
     }
 
     fn transform_request_body(&self, body: Value) -> Result<Value, AppError> {
         debug!("Transforming request body: {:#?}", body);
         
-        // If the body is already in the correct format, return it as is
+        // Return early if already in correct format
         if body.get("inferenceConfig").is_some() {
             return Ok(body);
         }
 
-        let messages = body["messages"]
-            .as_array()
+        let messages = body.get("messages")
+            .and_then(Value::as_array)
             .ok_or_else(|| {
                 error!("Invalid request format: messages array not found");
                 AppError::InvalidRequestFormat
             })?;
 
-        let transformed_messages = messages.iter().map(|msg| {
-            let content = msg["content"].as_str().unwrap_or_default();
-            json!({
-                "role": msg["role"].as_str().unwrap_or("user"),
-                "content": [
-                    {
-                        "text": content
-                    }
-                ]
+        let transformed_messages = messages.iter()
+            .map(|msg| {
+                let content = msg["content"].as_str().unwrap_or_default();
+                json!({
+                    "role": msg["role"].as_str().unwrap_or("user"),
+                    "content": [{ "text": content }]
+                })
             })
-        }).collect::<Vec<_>>();
+            .collect::<Vec<_>>();
 
         let transformed = json!({
             "messages": transformed_messages,
             "inferenceConfig": {
-                "maxTokens": body["max_tokens"].as_u64().unwrap_or(1000),
-                "temperature": body["temperature"].as_f64().unwrap_or(0.7),
-                "topP": body["top_p"].as_f64().unwrap_or(1.0)
+                "maxTokens": body.get("max_tokens")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(DEFAULT_MAX_TOKENS),
+                "temperature": body.get("temperature")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(DEFAULT_TEMPERATURE),
+                "topP": body.get("top_p")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(DEFAULT_TOP_P)
             }
         });
 
         debug!("Transformed body: {:#?}", transformed);
         Ok(transformed)
+    }
+
+    fn transform_bedrock_chunk(&self, chunk: Bytes) -> Result<Bytes, AppError> {
+        debug!("Processing chunk of size: {}", chunk.len());
+        let mut remaining = chunk.as_ref();
+        let mut response_events = Vec::new();
+
+        while !remaining.is_empty() {
+            match self.process_message(remaining) {
+                Ok((rest, events)) => {
+                    remaining = rest;
+                    response_events.extend(events);
+                }
+                Err(e) => {
+                    debug!("Failed to parse message: {:?}", e);
+                    break;
+                }
+            }
+        }
+
+        Ok(Bytes::from(response_events.join("")))
+    }
+
+    fn process_message<'a>(&self, data: &'a [u8]) -> Result<(&'a [u8], Vec<String>), AppError> {
+        let (rest, message) = parse_message(data)
+            .map_err(|e| AppError::EventStreamError(e.to_string()))?;
+
+        let event_type = self.get_event_type(&message);
+        let events = match event_type.as_deref() {
+            Some("contentBlockDelta") => self.handle_content_block(&message)?,
+            Some("metadata") => self.handle_metadata(&message)?,
+            _ => {
+                debug!("Skipping event type: {:?}", event_type);
+                vec![]
+            }
+        };
+
+        if !message.valid() {
+            warn!("Invalid message checksum detected");
+        }
+
+        Ok((rest, events))
+    }
+
+    fn get_event_type(&self, message: &Message) -> Option<String> {
+        message.headers.headers.iter()
+            .find(|h| h.key == ":event-type")
+            .and_then(|h| match &h.value {
+                aws_event_stream_parser::HeaderValue::String(s) => Some(s.to_string()),
+                _ => None
+            })
+    }
+
+    fn handle_content_block(&self, message: &Message) -> Result<Vec<String>, AppError> {
+        let body_str = String::from_utf8(message.body.to_vec())?;
+        let json: Value = serde_json::from_str(&body_str)?;
+        
+        if let Some(delta) = json.get("delta").and_then(|d| d.get("text")).and_then(Value::as_str) {
+            let response = self.create_delta_response(delta);
+            Ok(vec![format!("data: {}\n\n", response.to_string())])
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn handle_metadata(&self, message: &Message) -> Result<Vec<String>, AppError> {
+        let body_str = String::from_utf8(message.body.to_vec())?;
+        let json: Value = serde_json::from_str(&body_str)?;
+        
+        if let Some(usage) = json.get("usage") {
+            let final_message = self.create_final_response(usage);
+            Ok(vec![format!("data: {}\ndata: [DONE]\n\n", final_message.to_string())])
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn create_delta_response(&self, delta: &str) -> Value {
+        json!({
+            "id": "chatcmpl-bedrock",
+            "object": "chat.completion.chunk",
+            "created": chrono::Utc::now().timestamp(),
+            "model": "bedrock",
+            "choices": [{
+                "index": 0,
+                "delta": {
+                    "content": delta
+                },
+                "finish_reason": null
+            }]
+        })
+    }
+
+    fn create_final_response(&self, usage: &Value) -> Value {
+        json!({
+            "id": "chatcmpl-bedrock",
+            "object": "chat.completion.chunk",
+            "created": chrono::Utc::now().timestamp(),
+            "model": "bedrock",
+            "choices": [{
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+            }],
+            "usage": usage
+        })
     }
 }
 
@@ -214,96 +331,5 @@ impl Provider for BedrockProvider {
             headers.insert("access-control-expose-headers", HeaderValue::from_static("*"));
             Ok(response)
         }
-    }
-}
-
-impl BedrockProvider {
-    fn transform_bedrock_chunk(&self, chunk: Bytes) -> Result<Bytes, AppError> {
-        debug!("Received chunk of size: {}", chunk.len());
-        let mut remaining = chunk.as_ref();
-        let mut response_events = Vec::new();
-
-        while !remaining.is_empty() {
-            match parse_message(remaining) {
-                Ok((rest, message)) => {
-                    debug!("Parsed message: event_type={:?}", 
-                        message.headers.headers.iter()
-                            .find(|h| h.key == ":event-type")
-                            .map(|h| &h.value));
-                    
-                    remaining = rest;
-
-                    let event_type = message.headers.headers.iter()
-                        .find(|h| h.key == ":event-type")
-                        .and_then(|h| match &h.value {
-                            aws_event_stream_parser::HeaderValue::String(s) => Some(s.as_str()),
-                            _ => None
-                        })
-                        .unwrap_or_default();
-
-                    match event_type {
-                        "contentBlockDelta" => {
-                            if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
-                                if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
-                                    if let Some(delta) = json.get("delta").and_then(|d| d.get("text")).and_then(|t| t.as_str()) {
-                                        let openai_format = json!({
-                                            "id": "chatcmpl-bedrock",
-                                            "object": "chat.completion.chunk",
-                                            "created": chrono::Utc::now().timestamp(),
-                                            "model": "bedrock",
-                                            "choices": [{
-                                                "index": 0,
-                                                "delta": {
-                                                    "content": delta
-                                                },
-                                                "finish_reason": null
-                                            }]
-                                        });
-
-                                        response_events.push(format!("data: {}\n\n", openai_format.to_string()));
-                                    }
-                                }
-                            }
-                        },
-                        "metadata" => {
-                            if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
-                                if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
-                                    if let Some(usage) = json.get("usage") {
-                                        let final_message = json!({
-                                            "id": "chatcmpl-bedrock",
-                                            "object": "chat.completion.chunk",
-                                            "created": chrono::Utc::now().timestamp(),
-                                            "model": "bedrock",
-                                            "choices": [{
-                                                "index": 0,
-                                                "delta": {},
-                                                "finish_reason": "stop"
-                                            }],
-                                            "usage": usage
-                                        });
-                                        response_events.push(format!("data: {}\ndata: [DONE]\n\n", 
-                                            final_message.to_string()));
-                                    }
-                                }
-                            }
-                        },
-                        _ => {
-                            debug!("Skipping event type: {}", event_type);
-                        }
-                    }
-
-                    if !message.valid() {
-                        warn!("Invalid message checksum");
-                    }
-                }
-                Err(e) => {
-                    debug!("Failed to parse message: {:?}", e);
-                    break;
-                }
-            }
-        }
-
-        // Join all events and return as a single chunk
-        Ok(Bytes::from(response_events.join("")))
     }
 } 

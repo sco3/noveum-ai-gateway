@@ -158,21 +158,26 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 #### Example: AWS Bedrock Request
 
 ```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "x-provider: bedrock" \
-  -H "x-aws-access-key-id: YOUR_AWS_ACCESS_KEY" \
-  -H "x-aws-secret-access-key: YOUR_AWS_SECRET_KEY" \
-  -H "x-aws-region: us-east-1" \
-  -H "x-aws-session-token: YOUR_SESSION_TOKEN" \
-  -d '{
-    "model": "anthropic.claude-v2",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "max_tokens": 1000,
-    "temperature": 0.7,
-    "top_p": 1,
-    "top_k": 250
-  }'
+curl --location 'http://localhost:3000/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--header 'x-provider: bedrock' \
+--header 'x-aws-access-key-id: AWS_ACCESS_KEY_ID' \
+--header 'x-aws-secret-access-key: AWS_SECRET_ACCESS_KEY' \
+--header 'x-aws-region: us-east-1' \
+--data '{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Write a poem"
+    }
+  ],
+  "model": "amazon.titan-text-premier-v1:0",
+  "temperature": 1,
+  "max_tokens": 100,
+  "top_p": 1,
+  "stream": false,
+  "stop": "string"
+}'
 ```
 
 Note: When using Bedrock as the provider, the gateway automatically:

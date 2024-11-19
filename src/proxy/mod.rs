@@ -122,52 +122,50 @@ async fn process_response(
     config: Arc<AppConfig>,
 ) -> Result<Response<Body>, AppError> {
     let status = StatusCode::from_u16(response.status().as_u16())?;
-    
-    // Build headers immediately
     let mut response_builder = Response::builder().status(status);
     
-    // Add headers directly without collecting
+    // Efficiently copy headers
     for (name, value) in response.headers() {
         if let Ok(v) = HeaderValue::from_bytes(value.as_bytes()) {
             response_builder = response_builder.header(name.clone(), v);
         }
     }
 
-    // Check content type directly without collecting
-    let is_stream = response.headers()
+    // Fast path for non-streaming responses
+    if !response.headers()
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .map_or(false, |ct| ct.contains("application/vnd.amazon.eventstream"));
-
-    if is_stream {
-        debug!("Processing streaming response immediately");
-        
-        // Stream transformation
-        let stream = response
-            .bytes_stream()
-            .map(move |result| {
-                match result {
-                    Ok(bytes) => Ok(bytes),
-                    Err(e) => {
-                        error!("Stream error: {}", e);
-                        Err(std::io::Error::new(std::io::ErrorKind::Other, e))
-                    }
-                }
-            });
-
-        // Add streaming specific headers
-        response_builder = response_builder
-            .header("content-type", "text/event-stream")
-            .header("cache-control", "no-cache")
-            .header("connection", "keep-alive")
-            .header("transfer-encoding", "chunked")
-            .header("x-accel-buffering", "no");
-
-        Ok(response_builder
-            .body(Body::from_stream(stream))
-            .unwrap())
-    } else {
+        .map_or(false, |ct| 
+            ct.contains("application/vnd.amazon.eventstream") || 
+            ct.contains("text/event-stream")
+        )
+    {
         let body = response.bytes().await?;
-        Ok(response_builder.body(Body::from(body)).unwrap())
+        return Ok(response_builder.body(Body::from(body)).unwrap());
     }
+
+    // Optimized streaming response handling
+    debug!("Processing streaming response");
+    
+    let stream = response
+        .bytes_stream()
+        .map(|result| match result {
+            Ok(bytes) => Ok(bytes),
+            Err(e) => {
+                error!("Stream error: {}", e);
+                Err(std::io::Error::new(std::io::ErrorKind::Other, e))
+            }
+        });
+
+    // Add streaming headers once
+    response_builder = response_builder
+        .header("content-type", "text/event-stream")
+        .header("cache-control", "no-cache")
+        .header("connection", "keep-alive")
+        .header("transfer-encoding", "chunked")
+        .header("x-accel-buffering", "no");
+
+    Ok(response_builder
+        .body(Body::from_stream(stream))
+        .unwrap())
 }
