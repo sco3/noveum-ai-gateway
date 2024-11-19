@@ -3,7 +3,7 @@ use crate::error::AppError;
 use async_trait::async_trait;
 use axum::{
     body::{Body, Bytes},
-    http::{HeaderMap, Response, StatusCode},
+    http::{HeaderMap, HeaderValue, Response, StatusCode},
 };
 use serde_json::{json, Value};
 use tracing::{debug, error, warn};
@@ -185,15 +185,33 @@ impl Provider for BedrockProvider {
                     }
                 });
 
-            // Build response with transformed stream
+            // Build response with transformed stream and all necessary headers
             Ok(Response::builder()
                 .status(StatusCode::OK)
+                // SSE specific headers
                 .header("content-type", "text/event-stream")
                 .header("cache-control", "no-cache")
                 .header("connection", "keep-alive")
+                .header("transfer-encoding", "chunked")
+                // CORS headers
+                .header("access-control-allow-origin", "*")
+                .header("access-control-allow-methods", "POST, OPTIONS")
+                .header("access-control-allow-headers", "content-type, x-provider, x-aws-access-key-id, x-aws-secret-access-key, x-aws-region")
+                .header("access-control-expose-headers", "*")
+                // SSE specific headers for better client compatibility
+                .header("x-accel-buffering", "no")
+                .header("keep-alive", "timeout=600")
                 .body(Body::from_stream(stream))
                 .unwrap())
         } else {
+            // For non-streaming responses, still add CORS headers
+            let mut response = response;
+            let headers = response.headers_mut();
+            headers.insert("access-control-allow-origin", HeaderValue::from_static("*"));
+            headers.insert("access-control-allow-methods", HeaderValue::from_static("POST, OPTIONS"));
+            headers.insert("access-control-allow-headers", 
+                HeaderValue::from_static("content-type, x-provider, x-aws-access-key-id, x-aws-secret-access-key, x-aws-region"));
+            headers.insert("access-control-expose-headers", HeaderValue::from_static("*"));
             Ok(response)
         }
     }
