@@ -3,14 +3,19 @@ use crate::error::AppError;
 use async_trait::async_trait;
 use axum::{
     body::{Body, Bytes},
-    http::{HeaderMap, Response},
+    http::{HeaderMap, Response, StatusCode},
 };
 use serde_json::{json, Value};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
+use futures_util::StreamExt;
+use std::io::Read;
+use aws_event_stream_parser::{parse_message, Message};
 
+#[derive(Clone)]
 pub struct BedrockProvider {
     base_url: String,
     region: String,
+    buffer: Vec<u8>,
 }
 
 impl BedrockProvider {
@@ -20,6 +25,7 @@ impl BedrockProvider {
         Self {
             base_url: format!("https://bedrock-runtime.{}.amazonaws.com", region),
             region,
+            buffer: Vec::new(),
         }
     }
 
@@ -149,5 +155,161 @@ impl Provider for BedrockProvider {
 
     fn get_signing_host(&self) -> String {
         format!("bedrock-runtime.{}.amazonaws.com", self.region)
+    }
+
+    async fn process_response(&self, response: Response<Body>) -> Result<Response<Body>, AppError> {
+        if response.headers()
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map_or(false, |ct| ct.contains("application/vnd.amazon.eventstream"))
+        {
+            debug!("Processing Bedrock event stream response");
+            
+            // Create transformed stream
+            let provider = self.clone();
+            let stream = response
+                .into_body()
+                .into_data_stream()
+                .map(move |chunk| {
+                    match chunk {
+                        Ok(bytes) => {
+                            match provider.transform_bedrock_chunk(bytes) {
+                                Ok(transformed) => Ok(transformed),
+                                Err(e) => {
+                                    error!("Error transforming chunk: {}", e);
+                                    Err(std::io::Error::new(std::io::ErrorKind::Other, e))
+                                }
+                            }
+                        }
+                        Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+                    }
+                });
+
+            // Build response with transformed stream
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "text/event-stream")
+                .header("cache-control", "no-cache")
+                .header("connection", "keep-alive")
+                .body(Body::from_stream(stream))
+                .unwrap())
+        } else {
+            Ok(response)
+        }
+    }
+}
+
+impl BedrockProvider {
+    fn transform_bedrock_chunk(&self, chunk: Bytes) -> Result<Bytes, AppError> {
+        debug!("Received chunk of size: {}", chunk.len());
+        let mut response_events = Vec::new();
+        let mut remaining = chunk.as_ref();
+
+        while !remaining.is_empty() {
+            match parse_message(remaining) {
+                Ok((rest, message)) => {
+                    debug!("Parsed message: event_type={:?}", 
+                        message.headers.headers.iter()
+                            .find(|h| h.key == ":event-type")
+                            .map(|h| &h.value));
+                    
+                    // Update remaining bytes for next iteration
+                    remaining = rest;
+
+                    // Get event type and content type from headers
+                    let event_type = message.headers.headers.iter()
+                        .find(|h| h.key == ":event-type")  // Note the colon prefix
+                        .and_then(|h| match &h.value {
+                            aws_event_stream_parser::HeaderValue::String(s) => Some(s.as_str()),
+                            _ => None
+                        })
+                        .unwrap_or_default();
+
+                    // Process the message based on event type
+                    match event_type {
+                        "contentBlockDelta" => {
+                            if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
+                                if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
+                                    if let Some(delta) = json.get("delta").and_then(|d| d.get("text")).and_then(|t| t.as_str()) {
+                                        debug!("Found delta text: {}", delta);
+                                        let openai_format = json!({
+                                            "id": "chatcmpl-bedrock",
+                                            "object": "chat.completion.chunk",
+                                            "created": chrono::Utc::now().timestamp(),
+                                            "model": "bedrock",
+                                            "choices": [{
+                                                "index": 0,
+                                                "delta": {
+                                                    "content": delta
+                                                },
+                                                "finish_reason": null
+                                            }]
+                                        });
+
+                                        let formatted = format!("data: {}\n\n", openai_format.to_string());
+                                        response_events.push(Bytes::from(formatted));
+                                    }
+                                }
+                            }
+                        },
+                        "messageStop" | "contentBlockStop" => {
+                            if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
+                                if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
+                                    if json.get("stopReason").is_some() {
+                                        debug!("Found stop reason");
+                                        response_events.push(Bytes::from("data: [DONE]\n\n"));
+                                    }
+                                }
+                            }
+                        },
+                        "metadata" => {
+                            if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
+                                if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
+                                    debug!("Processing metadata: {}", json);
+                                    // Create final message with usage information
+                                    if let Some(usage) = json.get("usage") {
+                                        let final_message = json!({
+                                            "id": "chatcmpl-bedrock",
+                                            "object": "chat.completion.chunk",
+                                            "created": chrono::Utc::now().timestamp(),
+                                            "model": "bedrock",
+                                            "choices": [{
+                                                "index": 0,
+                                                "delta": {},
+                                                "finish_reason": "stop"
+                                            }],
+                                            "usage": usage
+                                        });
+                                        let formatted = format!("data: {}\n\n", final_message.to_string());
+                                        response_events.push(Bytes::from(formatted));
+                                        response_events.push(Bytes::from("data: [DONE]\n\n"));
+                                    }
+                                }
+                            }
+                        },
+                        _ => {
+                            debug!("Skipping event type: {}", event_type);
+                        }
+                    }
+
+                    // Validate message checksum
+                    if !message.valid() {
+                        warn!("Invalid message checksum");
+                    }
+                }
+                Err(e) => {
+                    debug!("Failed to parse message: {:?}", e);
+                    break;
+                }
+            }
+        }
+
+        if response_events.is_empty() {
+            debug!("No events processed, returning empty response");
+            Ok(Bytes::new())
+        } else {
+            debug!("Returning {} processed events", response_events.len());
+            Ok(Bytes::from(response_events.concat()))
+        }
     }
 } 

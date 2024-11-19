@@ -55,6 +55,13 @@ pub enum AppError {
 
     #[error("Request error: {0}")]
     RequestError(String),
+
+    #[error("Failed to parse event stream: {0}")]
+    EventStreamError(String),
+
+    #[error("UTF-8 conversion error: {0}")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
+
 }
 
 impl IntoResponse for AppError {
@@ -113,6 +120,18 @@ impl IntoResponse for AppError {
             AppError::RequestError(e) => (
                 StatusCode::BAD_REQUEST,
                 format!("Request error: {}", e),
+            ),
+            AppError::EventStreamError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to parse event stream: {}", e),
+            ),
+            AppError::Utf8Error(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("UTF-8 conversion error: {}", e),
+            ),
+            AppError::IoError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("IO error: {}", e),
             ),
         };
 
