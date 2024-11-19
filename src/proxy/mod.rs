@@ -122,28 +122,27 @@ async fn process_response(
     config: Arc<AppConfig>,
 ) -> Result<Response<Body>, AppError> {
     let status = StatusCode::from_u16(response.status().as_u16())?;
-    debug!("Processing response with status: {}", status);
     
-    let mut response_headers = HeaderMap::with_capacity(response.headers().len());
+    // Build headers immediately
+    let mut response_builder = Response::builder().status(status);
     
+    // Add headers directly without collecting
     for (name, value) in response.headers() {
-        if let (Ok(header_name), Ok(v)) = (
-            http::HeaderName::from_bytes(name.as_ref()),
-            HeaderValue::from_bytes(value.as_bytes()),
-        ) {
-            response_headers.insert(header_name, v);
+        if let Ok(v) = HeaderValue::from_bytes(value.as_bytes()) {
+            response_builder = response_builder.header(name.clone(), v);
         }
     }
 
-    // Check for streaming response
-    if response.headers()
+    // Check content type directly without collecting
+    let is_stream = response.headers()
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .map_or(false, |ct| ct.contains("text/event-stream"))
-    {
-        info!("Processing streaming response");
+        .map_or(false, |ct| ct.contains("application/vnd.amazon.eventstream"));
+
+    if is_stream {
+        debug!("Processing streaming response immediately");
         
-        // Create a stream that processes chunks immediately
+        // Stream transformation
         let stream = response
             .bytes_stream()
             .map(move |result| {
@@ -156,38 +155,19 @@ async fn process_response(
                 }
             });
 
-        let mut response_builder = Response::builder()
-            .status(status)
+        // Add streaming specific headers
+        response_builder = response_builder
             .header("content-type", "text/event-stream")
             .header("cache-control", "no-cache")
             .header("connection", "keep-alive")
-            .header("transfer-encoding", "chunked");
-
-        // Add all headers from response_headers
-        for (key, value) in response_headers {
-            if let Some(key) = key {
-                response_builder = response_builder.header(key, value);
-            }
-        }
+            .header("transfer-encoding", "chunked")
+            .header("x-accel-buffering", "no");
 
         Ok(response_builder
             .body(Body::from_stream(stream))
             .unwrap())
     } else {
-        debug!("Processing regular response");
-        
         let body = response.bytes().await?;
-        
-        let mut response_builder = Response::builder().status(status);
-        
-        for (key, value) in response_headers {
-            if let Some(key) = key {
-                response_builder = response_builder.header(key, value);
-            }
-        }
-
-        Ok(response_builder
-            .body(Body::from(body))
-            .unwrap())
+        Ok(response_builder.body(Body::from(body)).unwrap())
     }
 }
