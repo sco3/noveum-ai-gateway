@@ -37,7 +37,7 @@ tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 reqwest = { version = "0.12.9", features = ["stream", "json", "rustls-tls", "http2", "gzip", "brotli"], default-features = false }
 http = "1.0"
-bytes = { version = "1.0", features = ["serde"] }
+bytes = { version = "1.5.0", features = ["serde"] }
 dotenv = "0.15"
 futures-util = { version = "0.3", features = ["io"] }
 once_cell = "1.18"
@@ -46,3 +46,16 @@ thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 num_cpus = "1.15"
+aws-sigv4 = "1.2.4"
+aws-credential-types = "1.1"
+aws-smithy-runtime-api = "1.1"
+aws-types = "1.1"
+hyper = { version = "1.0", features = ["full"] }
+thread_local = "1.1"
+sha2 = "0.10"
+hex = "0.4"
+chrono = "0.4"
+
+[[test]]
+name = "bedrock_tests"
+path = "tests/bedrock_tests.rs"

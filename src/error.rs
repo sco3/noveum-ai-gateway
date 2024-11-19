@@ -4,8 +4,10 @@ use axum::{
     Json,
 };
 use http::status::InvalidStatusCode;
+use http::header::InvalidHeaderValue;
 use serde_json::json;
 use std::{convert::Infallible, io};
+use aws_sigv4::http_request::SigningError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -32,6 +34,27 @@ pub enum AppError {
 
     #[error("Missing or invalid API key")]
     MissingApiKey,
+
+    #[error("Invalid request format")]
+    InvalidRequestFormat,
+
+    #[error("Unsupported model")]
+    UnsupportedModel,
+
+    #[error("JSON error: {0}")]
+    JsonError(#[from] serde_json::Error),
+
+    #[error("AWS signing error: {0}")]
+    AwsSigningError(#[from] SigningError),
+
+    #[error("AWS params error: {0}")]
+    AwsParamsError(String),
+
+    #[error("Invalid header value: {0}")]
+    InvalidHeaderValue(#[from] InvalidHeaderValue),
+
+    #[error("Request error: {0}")]
+    RequestError(String),
 }
 
 impl IntoResponse for AppError {
@@ -54,9 +77,7 @@ impl IntoResponse for AppError {
                 StatusCode::BAD_GATEWAY,
                 "Invalid status code from provider".to_string(),
             ),
-            AppError::InvalidHeader => {
-                (StatusCode::BAD_REQUEST, "Invalid header value".to_string())
-            }
+            AppError::InvalidHeader => (StatusCode::BAD_REQUEST, "Invalid header value".to_string()),
             AppError::UnsupportedProvider => (
                 StatusCode::BAD_REQUEST,
                 "Unsupported AI provider".to_string(),
@@ -64,6 +85,34 @@ impl IntoResponse for AppError {
             AppError::MissingApiKey => (
                 StatusCode::UNAUTHORIZED,
                 "Missing or invalid API key".to_string(),
+            ),
+            AppError::InvalidRequestFormat => (
+                StatusCode::BAD_REQUEST,
+                "Invalid request format".to_string(),
+            ),
+            AppError::UnsupportedModel => (
+                StatusCode::BAD_REQUEST,
+                "Unsupported model".to_string(),
+            ),
+            AppError::JsonError(e) => (
+                StatusCode::BAD_REQUEST,
+                format!("JSON parsing error: {}", e),
+            ),
+            AppError::AwsSigningError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("AWS signing error: {}", e),
+            ),
+            AppError::AwsParamsError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("AWS params build error: {}", e),
+            ),
+            AppError::InvalidHeaderValue(e) => (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid header value: {}", e),
+            ),
+            AppError::RequestError(e) => (
+                StatusCode::BAD_REQUEST,
+                format!("Request error: {}", e),
             ),
         };
 

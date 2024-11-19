@@ -13,6 +13,7 @@ mod error;
 mod handlers;
 mod providers;
 mod proxy;
+mod context;
 
 use crate::config::AppConfig;
 

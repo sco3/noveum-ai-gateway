@@ -1,5 +1,5 @@
 use axum::{
-    body::{self, Body},
+    body::{self, Body, Bytes},
     http::{HeaderMap, HeaderValue, Request, Response, StatusCode},
 };
 use futures_util::StreamExt;
@@ -7,102 +7,108 @@ use reqwest::Method;
 use std::sync::Arc;
 use tracing::{debug, error, info};
 use bytes::BytesMut;
+use axum::body::to_bytes;
+use crate::providers::Provider;
+use tracing::field::debug;
 
 use crate::{config::AppConfig, error::AppError, providers::create_provider};
 
 mod client;
 pub use client::CLIENT;
+mod signing;
 
 pub async fn proxy_request_to_provider(
     config: Arc<AppConfig>,
     provider_name: &str,
-    original_request: Request<Body>,
+    mut original_request: Request<Body>,
 ) -> Result<Response<Body>, AppError> {
-    info!(
-        provider = provider_name,
-        method = %original_request.method(),
-        path = %original_request.uri().path(),
-        "Incoming request"
-    );
-
-    debug!("Creating provider instance for: {}", provider_name);
     let provider = create_provider(provider_name)?;
+    
+    // Extract body bytes
+    let body = std::mem::replace(original_request.body_mut(), Body::empty());
+    let body_bytes = to_bytes(body, usize::MAX)
+        .await
+        .map_err(|e| AppError::AxumError(e.into()))?;
 
-    debug!("Executing before_request hook");
-    provider.before_request(&original_request).await?;
-
+    // Process headers and transform path
+    let mut headers = provider.process_headers(original_request.headers())?;
     let path = original_request.uri().path();
     let modified_path = provider.transform_path(path);
-
+    
+    // Prepare request body
+    let prepared_body = provider.prepare_request_body(body_bytes).await?;
+    
+    // Construct final URL
     let query = original_request
         .uri()
         .query()
         .map(|q| format!("?{}", q))
         .unwrap_or_default();
-
     let url = format!("{}{}{}", provider.base_url(), modified_path, query);
+    debug!("Using URL: {}", url);
 
-    debug!(
-        provider = provider.name(),
-        url = %url,
-        "Preparing proxy request to {} provider", provider.name()
-    );
+    // Handle AWS signing if required
+    let final_headers = if provider.requires_signing() {
+        if let Some((access_key, secret_key, region)) = provider.get_signing_credentials(&headers) {
+            signing::sign_aws_request(
+                original_request.method().as_str(),
+                &url,
+                &headers,
+                &prepared_body,
+                &access_key,
+                &secret_key,
+                &region,
+                "bedrock",
+            ).await?
+        } else {
+            headers
+        }
+    } else {
+        headers
+    };
 
-    // Process headers
-    let headers = provider.process_headers(original_request.headers())?;
+    debug!("Final headers in proxy_request_to_provider: {:?}", final_headers);
 
-    // Create and send request with optimized buffer handling
+    // Send the request with signed headers
     let response = send_provider_request(
         original_request.method().clone(),
         url,
-        headers,
-        original_request.into_body(),
-        config.clone(),
-    )
-    .await?;
+        final_headers,
+        prepared_body,
+        &provider,
+        config,
+    ).await?;
 
-    // Process response
-    let processed_response = provider.process_response(response).await?;
-
-    // Call after request hook
-    provider.after_request(&processed_response).await?;
-
-    Ok(processed_response)
+    provider.process_response(response).await
 }
 
-async fn send_provider_request(
-    method: http::Method,
+pub async fn send_provider_request(
+    method: Method,
     url: String,
     headers: HeaderMap,
-    body: Body,
+    body: Bytes,
+    provider: &Box<dyn Provider>,
     config: Arc<AppConfig>,
 ) -> Result<Response<Body>, AppError> {
-    debug!("Preparing to send request: {} {}", method, url);
-    
-    let body_bytes = body::to_bytes(body, usize::MAX).await?;
-    debug!("Request body size: {} bytes", body_bytes.len());
-
     let client = &*CLIENT;
-    let method = Method::from_bytes(method.as_str().as_bytes())
-        .map_err(|_| AppError::InvalidMethod)?;
-
-    // Pre-allocate headers map with known capacity
-    let mut reqwest_headers = reqwest::header::HeaderMap::with_capacity(headers.len());
     
-    // Batch process headers
-    for (name, value) in headers.iter() {
-        if let (Ok(name_str), Ok(v)) = (
-            name.as_str().parse::<reqwest::header::HeaderName>(),
-            reqwest::header::HeaderValue::from_bytes(value.as_bytes()),
-        ) {
-            reqwest_headers.insert(name_str, v);
-        }
-    }
+    let reqwest_headers = headers.iter().filter_map(|(name, value)| {
+        name.as_str()
+            .parse::<reqwest::header::HeaderName>()
+            .ok()
+            .and_then(|name_str| {
+                reqwest::header::HeaderValue::from_bytes(value.as_bytes())
+                    .ok()
+                    .map(|v| (name_str, v))
+            })
+    }).collect::<reqwest::header::HeaderMap>();
+
+    debug!("Final headers in send_provider_request: {:?}", reqwest_headers);
 
     let response = client
         .request(method, url)
         .headers(reqwest_headers)
-        .body(body_bytes.to_vec())
+        .body(body)
         .send()
         .await?;
 

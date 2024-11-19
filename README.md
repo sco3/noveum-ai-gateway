@@ -155,10 +155,31 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   }'
 ```
 
-Note: When using Anthropic as the provider, the gateway automatically:
-- Routes requests to Anthropic's message API
-- Converts the Authorization Bearer token to the required x-api-key format
-- Adds the required anthropic-version header
+#### Example: AWS Bedrock Request
+
+```bash
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-provider: bedrock" \
+  -H "x-aws-access-key-id: YOUR_AWS_ACCESS_KEY" \
+  -H "x-aws-secret-access-key: YOUR_AWS_SECRET_KEY" \
+  -H "x-aws-region: us-east-1" \
+  -H "x-aws-session-token: YOUR_SESSION_TOKEN" \
+  -d '{
+    "model": "anthropic.claude-v2",
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "max_tokens": 1000,
+    "temperature": 0.7,
+    "top_p": 1,
+    "top_k": 250
+  }'
+```
+
+Note: When using Bedrock as the provider, the gateway automatically:
+- Signs requests using AWS SigV4 authentication
+- Transforms OpenAI-style requests to Bedrock format
+- Handles AWS credentials and region configuration
+- Supports Claude models through Bedrock
 
 ## SDK Compatibility
 
@@ -189,6 +210,28 @@ const chatCompletion = await openai.chat.completions.create({
   max_tokens: 100,
   top_p: 1,
   stream: false,
+});
+
+// For AWS Bedrock
+const bedrockClient = new OpenAI({
+  apiKey: 'not-needed', // AWS uses separate authentication
+  baseURL: "http://localhost:3000/v1/",
+  defaultHeaders: { 
+    "x-provider": "bedrock",
+    "x-aws-access-key-id": process.env.AWS_ACCESS_KEY_ID,
+    "x-aws-secret-access-key": process.env.AWS_SECRET_ACCESS_KEY,
+    "x-aws-region": process.env.AWS_REGION || "us-east-1",
+    // Optional: Include if using temporary credentials
+    "x-aws-session-token": process.env.AWS_SESSION_TOKEN
+  },
+});
+
+// Make requests as usual
+const completion = await bedrockClient.chat.completions.create({
+  model: "anthropic.claude-v2",
+  messages: [{ role: "user", content: "Hello!" }],
+  temperature: 0.7,
+  max_tokens: 1000
 });
 ```
 
@@ -304,6 +347,12 @@ cargo watch -x run
    - Verify provider API keys are correct
    - Check provider-specific headers are properly set
    - Ensure the provider endpoint exists and is correctly formatted
+
+4. **AWS Bedrock Authentication Errors**
+   - Verify AWS credentials are correct
+   - Check if the region is properly configured
+   - Ensure IAM permissions include Bedrock access
+   - Verify session token if using temporary credentials
 
 ## Support
 
@@ -482,3 +531,28 @@ curl --location 'https://gateway.magicapi.dev/v1/chat/completions' \
 ```
 
 > **Note**: This deployment is provided for testing and evaluation purposes only. For production workloads, please deploy your own instance of the gateway or contact us for information about production-ready managed solutions.
+
+## Supported Models
+
+### AWS Bedrock Models
+
+The gateway currently supports the following AWS Bedrock models:
+
+- `anthropic.claude-v2`
+- `anthropic.claude-v2:1`
+- `anthropic.claude-3-sonnet-20240229-v1:0`
+- `anthropic.claude-3-haiku-20240307-v1:0`
+
+More models will be added in future releases.
+
+## Environment Variables
+
+```bash
+RUST_LOG=debug # Logging level (debug, info, warn, error)
+
+# AWS Bedrock Configuration (Optional - can also be set via headers)
+AWS_REGION=us-east-1                  # Default AWS region for Bedrock
+AWS_ACCESS_KEY_ID=your_access_key     # AWS access key
+AWS_SECRET_ACCESS_KEY=your_secret_key # AWS secret key
+AWS_SESSION_TOKEN=your_session_token  # Optional: For temporary credentials
+```
