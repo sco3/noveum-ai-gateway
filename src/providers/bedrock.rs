@@ -252,16 +252,16 @@ impl BedrockProvider {
                                 }
                             }
                         },
-                        "messageStop" | "contentBlockStop" => {
-                            if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
-                                if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
-                                    if json.get("stopReason").is_some() {
-                                        debug!("Found stop reason");
-                                        response_events.push(Bytes::from("data: [DONE]\n\n"));
-                                    }
-                                }
-                            }
-                        },
+                        // "messageStop" | "contentBlockStop" => {
+                        //     if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
+                        //         if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
+                        //             if json.get("stopReason").is_some() {
+                        //                 debug!("Found stop reason");
+                        //                 response_events.push(Bytes::from("data: [DONE]\n\n"));
+                        //             }
+                        //         }
+                        //     }
+                        // },
                         "metadata" => {
                             if let Ok(body_str) = String::from_utf8(message.body.to_vec()) {
                                 if let Ok(json) = serde_json::from_str::<Value>(&body_str) {
