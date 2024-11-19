@@ -53,9 +53,8 @@ aws-types = "1.1"
 hyper = { version = "1.0", features = ["full"] }
 thread_local = "1.1"
 sha2 = "0.10"
-hex = "0.4"
 chrono = "0.4"
 
-[[test]]
-name = "bedrock_tests"
-path = "tests/bedrock_tests.rs"
+[dev-dependencies]
+magicapi-ai-gateway = { path = "." }
+hex = "0.4"

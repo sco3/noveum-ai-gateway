@@ -33,6 +33,12 @@ impl BedrockProvider {
 
     fn transform_request_body(&self, body: Value) -> Result<Value, AppError> {
         debug!("Transforming request body: {:#?}", body);
+        
+        // If the body is already in the correct format, return it as is
+        if body.get("inferenceConfig").is_some() {
+            return Ok(body);
+        }
+
         let messages = body["messages"]
             .as_array()
             .ok_or_else(|| {
@@ -40,57 +46,26 @@ impl BedrockProvider {
                 AppError::InvalidRequestFormat
             })?;
 
-        let model = body["model"]
-            .as_str()
-            .unwrap_or("amazon.titan-text-premier-v1:0");
-        
-        debug!("Processing model: {}", model);
-
-        let transformed = match model {
-            m if m.contains("titan") => {
-                let content = messages.last()
-                    .and_then(|msg| msg["content"].as_str())
-                    .unwrap_or("");
-
-                debug!("Transforming Titan model request");
-                json!({
-                    "inputText": content,
-                    "textGenerationConfig": {
-                        "maxTokenCount": body["max_tokens"].as_u64().unwrap_or(1000),
-                        "temperature": body["temperature"].as_f64().unwrap_or(0.7),
-                        "topP": body["top_p"].as_f64().unwrap_or(1.0),
-                        "stopSequences": []
+        let transformed_messages = messages.iter().map(|msg| {
+            let content = msg["content"].as_str().unwrap_or_default();
+            json!({
+                "role": msg["role"].as_str().unwrap_or("user"),
+                "content": [
+                    {
+                        "text": content
                     }
-                })
-            },
-            m if m.contains("anthropic") => {
-                debug!("Transforming Anthropic model request");
-                let prompt = messages.iter()
-                    .map(|msg| {
-                        let role = msg["role"].as_str().unwrap_or("user");
-                        let content = msg["content"].as_str().unwrap_or("");
-                        match role {
-                            "system" => format!("\n\nSystem: {}", content),
-                            "assistant" => format!("\n\nAssistant: {}", content),
-                            _ => format!("\n\nHuman: {}", content)
-                        }
-                    })
-                    .collect::<String>();
+                ]
+            })
+        }).collect::<Vec<_>>();
 
-                json!({
-                    "prompt": prompt,
-                    "max_tokens_to_sample": body["max_tokens"].as_u64().unwrap_or(1000),
-                    "temperature": body["temperature"].as_f64().unwrap_or(0.7),
-                    "top_p": body["top_p"].as_f64().unwrap_or(1.0),
-                    "top_k": body["top_k"].as_u64().unwrap_or(250),
-                    "stop_sequences": ["\n\nHuman:", "\n\nAssistant:"]
-                })
-            },
-            _ => {
-                error!("Unsupported model: {}", model);
-                return Err(AppError::UnsupportedModel);
+        let transformed = json!({
+            "messages": transformed_messages,
+            "inferenceConfig": {
+                "maxTokens": body["max_tokens"].as_u64().unwrap_or(1000),
+                "temperature": body["temperature"].as_f64().unwrap_or(0.7),
+                "topP": body["top_p"].as_f64().unwrap_or(1.0)
             }
-        };
+        });
 
         debug!("Transformed body: {:#?}", transformed);
         Ok(transformed)
@@ -150,7 +125,7 @@ impl Provider for BedrockProvider {
         };
         
         debug!("Using model for path: {}", model);
-        format!("/model/{}/invoke", model)
+        format!("/model/{}/converse-stream", model)
     }
 
     fn requires_signing(&self) -> bool {
