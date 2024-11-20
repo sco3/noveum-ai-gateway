@@ -6,15 +6,13 @@
 
 [![Rust](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml/badge.svg)](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml)
 [![Crates.io](https://img.shields.io/crates/v/magicapi-ai-gateway.svg)](https://crates.io/crates/magicapi-ai-gateway)
-[![Documentation](https://docs.rs/magicapi-ai-gateway/badge.svg)](https://docs.rs/magicapi-ai-gateway)
 [![License: MIT/Apache-2.0](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
 [![Docker Pulls](https://img.shields.io/docker/pulls/magicapi1/magicapi-ai-gateway)](https://hub.docker.com/r/magicapi1/magicapi-ai-gateway)
 
 [Quick Start](#quick-start) • 
 [Documentation](docs/) • 
-[Examples](examples/) • 
-[Docker](docs/docker.md) • 
-[Contributing](.github/CONTRIBUTING.md)
+[Docker](docs/deployment.md) • 
+[Contributing](docs/CONTRIBUTING.md)
 
 </div>
 
@@ -24,22 +22,28 @@
 - ⚡ **Optimized for low latency and high throughput**
 - 🔄 **Unified API interface for multiple AI providers**:
   - OpenAI
+  - AWS Bedrock
   - Anthropic
   - GROQ
   - Fireworks
   - Together AI
-  - AWS Bedrock
 - 📡 **Real-time Streaming**: Optimized for minimal latency
 - 🛡️ **Production Ready**: Battle-tested in high-load environments
 - 🔍 **Health Checking**: Built-in monitoring
 - 🌐 **CORS Support**: Configurable cross-origin resource sharing
-- 📊 **Metrics**: Prometheus integration for monitoring
+- 🛠️ **SDK Compatibility**: Works with any OpenAI-compatible SDK
 
 ## 🚀 Quick Start
 
 ### Installation
 
 You can install MagicAPI Gateway using one of these methods:
+
+### One Line Install & Run (With Cargo Install)
+
+```bash
+curl https://sh.rustup.rs -sSf | sh && cargo install magicapi-ai-gateway && magicapi-ai-gateway
+```
 
 #### Using Cargo Install
 
@@ -273,6 +277,32 @@ const togetherClient = new OpenAI({
 
 The gateway automatically handles the necessary transformations to ensure compatibility with each provider's API format while maintaining the familiar OpenAI SDK interface.
 
+### Testing Gateway URL
+```
+https://gateway.magicapi.dev
+```
+
+### Send Example Request to Testing Gateway
+```bash
+curl --location 'https://gateway.magicapi.dev/v1/chat/completions' \
+  --header 'Authorization: Bearer YOUR_API_KEY' \
+  --header 'Content-Type: application/json' \
+  --header 'x-provider: groq' \
+  --data '{
+    "model": "llama-3.1-8b-instant",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Write a poem"
+        }
+    ],
+    "stream": true,
+    "max_tokens": 300
+}'
+```
+
+> **Note**: This deployment is provided for testing and evaluation purposes only. For production workloads, please deploy your own instance of the gateway or contact us for information about production-ready managed solutions.
+
 ## 🔧 Configuration
 
 The gateway can be configured using environment variables:
@@ -346,7 +376,6 @@ cargo watch -x run
 
 ## 💬 Community
 
-- [Discord](https://discord.gg/magicapi)
 - [GitHub Discussions](https://github.com/magicapi/ai-gateway/discussions)
 - [Twitter](https://twitter.com/magicapi)
 
@@ -389,6 +418,8 @@ docker run -p 3000:3000 \
 ```
 
 ### Docker Compose
+
+For detailed deployment instructions, please refer to the [Deployment Guide](docs/deployment.md).
 
 #### Option 1: Build from Source
 
@@ -488,29 +519,3 @@ After publishing, verify:
 ## Testing Deployment
 
 MagicAPI provides a testing deployment of the AI Gateway, hosted in our London data centre. This deployment is intended for testing and evaluation purposes only, and should not be used for production workloads.
-
-### Testing Gateway URL
-```
-https://gateway.magicapi.dev
-```
-
-### Send Example Request to Testing Gateway
-```bash
-curl --location 'https://gateway.magicapi.dev/v1/chat/completions' \
-  --header 'Authorization: Bearer YOUR_API_KEY' \
-  --header 'Content-Type: application/json' \
-  --header 'x-provider: groq' \
-  --data '{
-    "model": "llama-3.1-8b-instant",
-    "messages": [
-        {
-            "role": "user",
-            "content": "Write a poem"
-        }
-    ],
-    "stream": true,
-    "max_tokens": 300
-}'
-```
-
-> **Note**: This deployment is provided for testing and evaluation purposes only. For production workloads, please deploy your own instance of the gateway or contact us for information about production-ready managed solutions.

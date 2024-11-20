@@ -23,8 +23,8 @@ const DEFAULT_TOP_P: f64 = 1.0;
 /// BedrockProvider handles AWS Bedrock API integration
 #[derive(Clone)]
 pub struct BedrockProvider {
-    base_url: String,
-    region: String,
+    base_url: Arc<RwLock<String>>,
+    region: Arc<RwLock<String>>,
     current_model: Arc<RwLock<String>>,
 }
 
@@ -34,8 +34,11 @@ impl BedrockProvider {
         debug!("Initializing BedrockProvider with region: {}", region);
 
         Self {
-            base_url: format!("https://bedrock-runtime.{}.amazonaws.com", region),
-            region,
+            base_url: Arc::new(RwLock::new(format!(
+                "https://bedrock-runtime.{}.amazonaws.com",
+                region
+            ))),
+            region: Arc::new(RwLock::new(region)),
             current_model: Arc::new(RwLock::new(DEFAULT_MODEL.to_string())),
         }
     }
@@ -212,8 +215,8 @@ impl BedrockProvider {
 
 #[async_trait]
 impl Provider for BedrockProvider {
-    fn base_url(&self) -> &str {
-        &self.base_url
+    fn base_url(&self) -> String {
+        self.base_url.read().clone()
     }
 
     fn name(&self) -> &str {
@@ -228,6 +231,14 @@ impl Provider for BedrockProvider {
                 *self.current_model.write() = model.to_string();
             }
         }
+
+        // Extract and set the region from the request headers
+        if let Some(region) = headers.get("x-aws-region").and_then(|h| h.to_str().ok()) {
+            debug!("Setting region from before_request: {}", region);
+            *self.region.write() = region.to_string();
+            *self.base_url.write() = format!("https://bedrock-runtime.{}.amazonaws.com", region);
+        }
+
         Ok(())
     }
 
@@ -272,17 +283,15 @@ impl Provider for BedrockProvider {
         let region = headers
             .get("x-aws-region")
             .and_then(|h| h.to_str().ok())
-            .unwrap_or(&self.region);
+            .map(String::from)
+            .unwrap_or_else(|| self.region.read().clone());
 
-        Some((
-            access_key.to_string(),
-            secret_key.to_string(),
-            region.to_string(),
-        ))
+        Some((access_key.to_string(), secret_key.to_string(), region))
     }
 
     fn get_signing_host(&self) -> String {
-        format!("bedrock-runtime.{}.amazonaws.com", self.region)
+        let region = self.region.read().clone();
+        format!("bedrock-runtime.{}.amazonaws.com", region)
     }
 
     async fn process_response(&self, response: Response<Body>) -> Result<Response<Body>, AppError> {

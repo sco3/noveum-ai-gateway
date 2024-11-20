@@ -9,7 +9,7 @@ use tracing::error;
 #[async_trait]
 pub trait Provider: Send + Sync {
     /// Get the base URL for the provider's API
-    fn base_url(&self) -> &str;
+    fn base_url(&self) -> String;
 
     /// Get the provider's name for logging and identification
     fn name(&self) -> &str;

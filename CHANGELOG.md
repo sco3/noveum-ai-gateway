@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2024-11-20
 ### Added
 - AWS Bedrock models support via the same gateway, allowing access to streaming capabilities through OpenAI-compatible interfaces.
-- AWS request signing functionality in `signing.rs` for secure API requests.
-- Comprehensive documentation for AWS Bedrock Provider integration in `bedrock.md`.
+- AWS request signing functionality in `src/proxy/signing.rs` for secure API requests.
+- Comprehensive documentation for AWS Bedrock Provider integration in `docs/providers/bedrock.md`.
 
 ### Enhanced
 - Updated provider documentation to reflect new features and improvements.
