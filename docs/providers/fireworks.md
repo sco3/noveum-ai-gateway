@@ -50,6 +50,36 @@ curl -X POST http://localhost:3000/v1/chat/completions \
   }'
 ```
 
+### Multimodal Vision Model
+```bash
+curl --location 'localhost:3000/v1/chat/completions' \
+--header 'Authorization: Bearer $FIREWORKS_API_KEY' \
+--header 'Content-Type: application/json' \
+--header 'x-provider: fireworks' \
+--data '{
+    "model": "accounts/fireworks/models/llama-v3p2-11b-vision-instruct",
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "What'\''s in this image?"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f2/LPU-v1-die.jpg"
+                    }
+                }
+            ]
+        }
+    ],
+    "stream": false,
+    "max_tokens": 300
+}'
+```
+
 ### TypeScript/JavaScript SDK
 ```typescript
 import OpenAI from 'openai';
