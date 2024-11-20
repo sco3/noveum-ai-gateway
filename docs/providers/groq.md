@@ -1,7 +1,7 @@
 # GROQ Provider Integration
 
 ## Overview
-GROQ provider support in MagicAPI AI Gateway enables high-performance access to GROQ's inference infrastructure through an OpenAI-compatible API interface.
+GROQ provider support in MagicAPI AI Gateway enables high-performance access to GROQ's inference infrastructure through an OpenAI-compatible API interface. This API also supports MultiModal vision models and tool use.
 
 ## Supported Models
 
@@ -45,6 +45,89 @@ curl http://localhost:3000/v1/chat/completions \
     "temperature": 0.7,
     "max_tokens": 500
   }'
+```
+
+### MultiModal Vision Model Example (cURL)
+```bash
+curl --location 'localhost:3000/v1/chat/completions' \
+--header 'Authorization: Bearer $GROQ_API_KEY' \
+--header 'Content-Type: application/json' \
+--header 'x-provider: groq' \
+--data '{
+    "model": "llama-3.2-11b-vision-preview",
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "What'\''s in this image?"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f2/LPU-v1-die.jpg"
+                    }
+                }
+            ]
+        }
+    ],
+    "stream": false,
+    "max_tokens": 300
+}'
+```
+
+### Tool Use Example (cURL)
+```bash
+curl --location 'localhost:3000/v1/chat/completions' \
+--header 'Authorization: Bearer YOUR_GROQ_KEY' \
+--header 'Content-Type: application/json' \
+--header 'x-provider: groq' \
+--data '{
+    "model": "llama-3.2-11b-vision-preview",
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "What'\''s weather in Bangalore?"
+                }
+            ]
+        }
+    ],
+    "tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_current_weather",
+                "description": "Get the current weather in a given location",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA"
+                        },
+                        "unit": {
+                            "type": "string",
+                            "enum": [
+                                "celsius",
+                                "fahrenheit"
+                            ]
+                        }
+                    },
+                    "required": [
+                        "location"
+                    ]
+                }
+            }
+        }
+    ],
+    "tool_choice": "auto",
+    "stream": false,
+    "max_tokens": 300
+}'
 ```
 
 ### OpenAI SDK Integration
