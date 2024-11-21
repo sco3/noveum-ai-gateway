@@ -363,7 +363,7 @@ console.log(response.choices[0].message.content);
   Context Length: 4096  
   Quantization: FP16  
 
-#### HuggingFace
+#### Hugging Face
 - **Zephyr-7B-ß**  
   API Model: `HuggingFaceH4/zephyr-7b-beta`  
   Context Length: 32768  
