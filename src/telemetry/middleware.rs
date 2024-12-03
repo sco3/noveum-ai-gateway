@@ -15,6 +15,7 @@ use tracing::{debug, error};
 use axum::body::to_bytes;
 use hyper::body::HttpBody;
 use hyper::Error;
+use serde_json::Value;
 
 pub async fn metrics_middleware(
     State(registry): State<Arc<MetricsRegistry>>,
@@ -165,6 +166,7 @@ async fn handle_streaming_response(
     tokio::spawn(async move {
         let mut response_size = 0;
         let mut accumulated_metrics = ProviderMetrics::default();
+        let mut final_metrics_found = false;
 
         let mut stream = body.into_data_stream();
         while let Some(chunk) = stream.next().await {
@@ -173,9 +175,28 @@ async fn handle_streaming_response(
                 debug!("Streaming response chunk size: {} bytes", bytes.len());
 
                 if let Ok(chunk_str) = String::from_utf8(bytes.to_vec()) {
-                    if let Some(chunk_metrics) = metrics_extractor.extract_streaming_metrics(&chunk_str) {
-                        accumulated_metrics = chunk_metrics.clone();
-                        debug!("Extracted streaming metrics: {:?}", chunk_metrics);
+                    // Parse SSE format - each line starts with "data: "
+                    for line in chunk_str.lines() {
+                        if line.starts_with("data: ") {
+                            let json_str = line.trim_start_matches("data: ");
+                            if json_str == "[DONE]" {
+                                continue;
+                            }
+
+                            if let Ok(json_value) = serde_json::from_str::<Value>(json_str) {
+                                // Update model from any chunk
+                                if let Some(model) = json_value.get("model").and_then(|m| m.as_str()) {
+                                    accumulated_metrics.model = model.to_string();
+                                }
+
+                                // Look for usage information
+                                if json_value.get("usage").is_some() {
+                                    debug!("Found usage data in chunk: {}", json_str);
+                                    accumulated_metrics = metrics_extractor.extract_metrics(&json_value);
+                                    final_metrics_found = true;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -183,25 +204,30 @@ async fn handle_streaming_response(
             }
         }
 
-        // Record final metrics
-        let metrics = RequestMetrics {
-            provider,
-            path,
-            method,
-            model: accumulated_metrics.model,
-            total_latency: start.elapsed(),
-            provider_latency: accumulated_metrics.provider_latency,
-            request_size: req_size,
-            response_size,
-            input_tokens: accumulated_metrics.input_tokens,
-            output_tokens: accumulated_metrics.output_tokens,
-            total_tokens: accumulated_metrics.total_tokens,
-            status_code: parts.status.as_u16(),
-            cost: accumulated_metrics.cost,
-            ..Default::default()
-        };
+        // Record final metrics if we found them
+        if final_metrics_found {
+            let metrics = RequestMetrics {
+                provider,
+                path,
+                method,
+                model: accumulated_metrics.model,
+                total_latency: start.elapsed(),
+                provider_latency: accumulated_metrics.provider_latency,
+                request_size: req_size,
+                response_size,
+                input_tokens: accumulated_metrics.input_tokens,
+                output_tokens: accumulated_metrics.output_tokens,
+                total_tokens: accumulated_metrics.total_tokens,
+                status_code: parts.status.as_u16(),
+                cost: accumulated_metrics.cost,
+                ..Default::default()
+            };
 
-        metrics_registry.record_metrics(metrics).await;
+            debug!("Recording streaming metrics: {:?}", metrics);
+            metrics_registry.record_metrics(metrics).await;
+        } else {
+            debug!("No final metrics found in streaming response");
+        }
     });
 
     Response::from_parts(parts, Body::from_stream(ReceiverStream::new(rx)))
