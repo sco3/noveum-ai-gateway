@@ -161,6 +161,7 @@ async fn handle_streaming_response(
     let (tx, rx) = mpsc::channel::<Result<Bytes, Error>>(100);
 
     let metrics_registry = registry.clone();
+    let mut accumulated_text = String::new();
 
     // Process the stream
     tokio::spawn(async move {
@@ -175,28 +176,13 @@ async fn handle_streaming_response(
                 debug!("Streaming response chunk size: {} bytes", bytes.len());
 
                 if let Ok(chunk_str) = String::from_utf8(bytes.to_vec()) {
-                    // Parse SSE format - each line starts with "data: "
-                    for line in chunk_str.lines() {
-                        if line.starts_with("data: ") {
-                            let json_str = line.trim_start_matches("data: ");
-                            if json_str == "[DONE]" {
-                                continue;
-                            }
-
-                            if let Ok(json_value) = serde_json::from_str::<Value>(json_str) {
-                                // Update model from any chunk
-                                if let Some(model) = json_value.get("model").and_then(|m| m.as_str()) {
-                                    accumulated_metrics.model = model.to_string();
-                                }
-
-                                // Look for usage information
-                                if json_value.get("usage").is_some() {
-                                    debug!("Found usage data in chunk: {}", json_str);
-                                    accumulated_metrics = metrics_extractor.extract_metrics(&json_value);
-                                    final_metrics_found = true;
-                                }
-                            }
-                        }
+                    accumulated_text.push_str(&chunk_str);
+                    
+                    // Try to extract metrics from this chunk
+                    if let Some(metrics) = metrics_extractor.extract_streaming_metrics(&chunk_str) {
+                        accumulated_metrics = metrics;
+                        final_metrics_found = true;
+                        debug!("Extracted metrics from streaming chunk: {:?}", accumulated_metrics);
                     }
                 }
 
@@ -226,7 +212,7 @@ async fn handle_streaming_response(
             debug!("Recording streaming metrics: {:?}", metrics);
             metrics_registry.record_metrics(metrics).await;
         } else {
-            debug!("No final metrics found in streaming response");
+            debug!("No final metrics found in streaming response. Total text accumulated: {} bytes", accumulated_text.len());
         }
     });
 
