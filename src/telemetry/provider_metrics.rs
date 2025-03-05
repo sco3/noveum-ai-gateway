@@ -53,9 +53,24 @@ impl MetricsExtractor for OpenAIMetricsExtractor {
     fn extract_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
         debug!("Attempting to extract metrics from streaming chunk: {}", chunk);
         if let Ok(json) = serde_json::from_str::<Value>(chunk) {
+            // If we have usage data, extract full metrics
             if json.get("usage").is_some() {
                 debug!("Found usage in streaming chunk, extracting metrics");
                 return Some(self.extract_metrics(&json));
+            }
+            
+            // For OpenAI streaming, extract what we can even if usage is missing
+            // This will handle the common case where OpenAI omits token counts in streaming
+            let model = json.get("model").and_then(|m| m.as_str()).unwrap_or("unknown").to_string();
+            
+            if model.contains("gpt") || json.get("object").and_then(|o| o.as_str()).unwrap_or("") == "chat.completion.chunk" {
+                debug!("OpenAI streaming response detected without usage data, creating partial metrics");
+                return Some(ProviderMetrics {
+                    model,
+                    provider_latency: Duration::from_millis(0), // We can't determine this from chunks
+                    // Leave token counts and cost as None
+                    ..Default::default()
+                });
             }
         }
         debug!("No usage data found in streaming chunk");

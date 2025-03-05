@@ -8,7 +8,7 @@ use axum::{
     middleware::Next,
 };
 use futures_util::StreamExt;
-use std::{sync::Arc, time::Instant};
+use std::{sync::Arc, time::{Instant, Duration}};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, error};
@@ -157,6 +157,15 @@ async fn handle_regular_response(
 
     debug!("Regular response body size: {} bytes", resp_size);
 
+    // Extract provider request ID from response headers
+    let provider_request_id = parts.headers.get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    
+    if let Some(id) = &provider_request_id {
+        debug!("Provider request ID: {}", id);
+    }
+
     // Extract metrics from response body
     let (provider_metrics, resp_body) = if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) {
         (metrics_extractor.extract_metrics(&json), Some(json))
@@ -183,6 +192,8 @@ async fn handle_regular_response(
         project_id,
         org_id,
         user_id,
+        experiment_id,
+        provider_request_id,
         request_body: req_body,
         response_body: resp_body,
         ..Default::default()
@@ -211,6 +222,15 @@ async fn handle_streaming_response(
     let (parts, body) = response.into_parts();
     let (tx, rx) = mpsc::channel::<Result<Bytes, Error>>(100);
 
+    // Extract provider request ID from response headers
+    let provider_request_id = parts.headers.get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+    
+    if let Some(id) = &provider_request_id {
+        debug!("Provider request ID for streaming response: {}", id);
+    }
+
     let metrics_registry = registry.clone();
     let mut accumulated_text = String::new();
 
@@ -238,34 +258,83 @@ async fn handle_streaming_response(
                             streamed_chunks.push(json_chunk);
                         }
                     } else {
-                        // For SSE format, try to extract JSON from each line
+                        // For streaming that sends chunks broken up, try to parse 
+                        // different formats (like data: {...}\n\n for SSE)
                         for line in chunk_str.lines() {
                             if line.starts_with("data: ") {
-                                let json_str = line.trim_start_matches("data: ");
-                                if json_str != "[DONE]" {
-                                    if let Ok(json_data) = serde_json::from_str::<Value>(json_str) {
-                                        streamed_chunks.push(json_data);
+                                let data = line.trim_start_matches("data: ");
+                                if data == "[DONE]" {
+                                    debug!("Received [DONE] signal in streaming");
+                                    continue;
+                                }
+                                
+                                if let Ok(json_data) = serde_json::from_str::<Value>(data) {
+                                    streamed_chunks.push(json_data.clone());
+                                    
+                                    // Try to extract metrics from this chunk
+                                    if let Some(chunk_metrics) = metrics_extractor.extract_streaming_metrics(data) {
+                                        debug!("Found metrics in streaming chunk: {:?}", chunk_metrics);
+                                        accumulated_metrics = chunk_metrics;
+                                        final_metrics_found = true;
                                     }
                                 }
                             }
                         }
                     }
-                    
-                    // Try to extract metrics from this chunk
-                    if let Some(metrics) = metrics_extractor.extract_streaming_metrics(&chunk_str) {
-                        accumulated_metrics = metrics;
-                        final_metrics_found = true;
-                        debug!("Extracted metrics from streaming chunk: {:?}", accumulated_metrics);
-                    }
                 }
-
-                let _ = tx.send(Ok(bytes)).await;
+                
+                // Always forward the bytes to the client
+                if let Err(e) = tx.send(Ok(bytes)).await {
+                    error!("Failed to forward streaming chunk: {}", e);
+                    break;
+                }
+            } else if let Err(e) = chunk {
+                error!("Error in streaming response: {}", e);
+                // For type compatibility, we'll just break the stream instead of trying to send the error
+                // This avoids issues with error type conversions
+                break;
             }
         }
 
         // Try to parse the accumulated response
         if !accumulated_text.is_empty() {
             resp_body = serde_json::from_str(&accumulated_text).ok();
+        }
+        
+        // Track if this is OpenAI streaming by checking provider name
+        let is_openai_streaming = provider == "openai";
+
+        // For OpenAI streaming, if we have no metrics but we finished reading the stream,
+        // we should create a minimal metrics record with what we know
+        if !final_metrics_found && is_openai_streaming && !streamed_chunks.is_empty() {
+            // Try to extract model from the stream chunks
+            let model = streamed_chunks.iter()
+                .find_map(|chunk| chunk.get("model").and_then(|m| m.as_str()))
+                .unwrap_or("unknown")
+                .to_string();
+                
+            debug!("Creating partial metrics for OpenAI streaming response with model: {}", model);
+            
+            // Rough token estimation based on accumulated text length
+            // Approximation: ~4 characters per token for English text
+            let estimated_output_tokens = if !accumulated_text.is_empty() {
+                Some((accumulated_text.len() as f64 / 4.0).ceil() as u32)
+            } else {
+                None
+            };
+            
+            debug!("Estimated output tokens from {} bytes of text: {:?}", 
+                accumulated_text.len(), estimated_output_tokens);
+            
+            accumulated_metrics = ProviderMetrics {
+                model,
+                provider_latency: Duration::from_millis(0),
+                output_tokens: estimated_output_tokens,
+                // We don't have input tokens or total tokens
+                ..Default::default()
+            };
+            
+            final_metrics_found = true;
         }
 
         // Record final metrics if we found them
@@ -287,6 +356,8 @@ async fn handle_streaming_response(
                 project_id,
                 org_id,
                 user_id,
+                experiment_id,
+                provider_request_id,
                 request_body: req_body,
                 response_body: resp_body,
                 streamed_data: if !streamed_chunks.is_empty() { Some(streamed_chunks) } else { None },

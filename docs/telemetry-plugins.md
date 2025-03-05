@@ -357,7 +357,8 @@ MagicAPI Gateway now supports OpenTelemetry compatible logs for all telemetry pl
       "error_count": 0,
       "error_type": null,
       "provider_error_count": 0,
-      "provider_error_type": null
+      "provider_error_type": null,
+      "provider_request_id": "req_01jnkrrz2ken1bej7emqf9j2af"
     }
   }
 }

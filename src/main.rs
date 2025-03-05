@@ -34,7 +34,6 @@ use crate::{
         MetricsRegistry, 
         metrics_middleware, 
         ConsolePlugin,
-        PrometheusExporter,
         plugins::elasticsearch::ElasticsearchPlugin,
     },
 };
@@ -76,19 +75,12 @@ async fn main() {
 
     let telemetry_config = TelemetryConfig::default();
     debug!(
-        "Telemetry configuration: prometheus_enabled={}, debug_mode={}",
-        telemetry_config.prometheus_enabled, telemetry_config.debug_mode
+        "Telemetry configuration: debug_mode={}",
+        telemetry_config.debug_mode
     );
     let metrics_registry = Arc::new(MetricsRegistry::new(telemetry_config.debug_mode));
 
     // Register exporters based on configuration
-    if telemetry_config.prometheus_enabled {
-        debug!("Registering Prometheus exporter");
-        metrics_registry
-            .register_exporter(Box::new(PrometheusExporter::new("ai_gateway".to_string())))
-            .await;
-    }
-
     if telemetry_config.debug_mode {
         debug!("Registering Console plugin for metrics");
         metrics_registry

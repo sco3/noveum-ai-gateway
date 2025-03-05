@@ -65,7 +65,8 @@ Example Request
         "latency": 6250,
         "tokens": { "input": 48, "output": 865, "total": 913 },
         "cost": 0.0456,
-        "status": "success"
+        "status": "success",
+        "provider_request_id": "chatcmpl-az-gpt4-001"
       }
     }
   },
@@ -123,7 +124,8 @@ Example Request
         "latency": 5320,
         "tokens": { "input": 36, "output": 595, "total": 631 },
         "cost": 0.0315,
-        "status": "success"
+        "status": "success",
+        "provider_request_id": "chatcmpl-tog-llama-001"
       }
     }
   },
@@ -262,7 +264,8 @@ Example Request
         "latency": 1244,
         "tokens": { "input": 38, "output": 256, "total": 294 },
         "cost": 0.0263,
-        "status": "success"
+        "status": "success",
+        "provider_request_id": "req_01jnkrrz2ken1bej7emqf9j2af"
       }
     }
   }

@@ -7,7 +7,6 @@ pub mod provider_metrics;
 pub use self::{
     metrics::MetricsRegistry,
     plugins::ConsolePlugin,
-    exporters::prometheus::PrometheusExporter,
     middleware::metrics_middleware,
 };
 
@@ -15,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use serde_json::{Value, json};
 use uuid::Uuid;
+use tracing::debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceInfo {
@@ -45,6 +45,7 @@ pub struct LogAttributes {
     pub org_id: Option<String>,    
     pub user_id: Option<String>,
     pub project_id: Option<String>,
+    pub experiment_id: Option<String>,
 
     // Provider/model details
     pub provider: String,
@@ -79,6 +80,7 @@ pub struct LogMetadata {
     pub error_type: Option<String>,
     pub provider_error_count: u32,
     pub provider_error_type: Option<String>,
+    pub provider_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,6 +129,8 @@ pub struct RequestMetrics {
     pub user_id: Option<String>,
     pub project_id: Option<String>,
     pub project_name: Option<String>,
+    pub provider_request_id: Option<String>,
+    pub experiment_id: Option<String>,
     
     // Original request and response
     pub request_body: Option<Value>,
@@ -164,6 +168,8 @@ impl Default for RequestMetrics {
             user_id: None,
             project_id: None,
             project_name: None,
+            provider_request_id: None,
+            experiment_id: None,
             request_body: None,
             response_body: None,
             streamed_data: None,
@@ -205,6 +211,7 @@ impl RequestMetrics {
             error_type: self.error_type.clone(),
             provider_error_count: self.provider_error_count,
             provider_error_type: self.provider_error_type.clone(),
+            provider_request_id: self.provider_request_id.clone(),
         };
         
         // Prepare the response data based on whether it's streaming or not
@@ -217,11 +224,14 @@ impl RequestMetrics {
                 response_value["streamed_data"] = json!(streamed_chunks);
             }
             
-            Some(response_value)
+            Some(self.sanitize_for_elasticsearch(response_value))
         } else {
             // For non-streaming responses, just include the response body
-            self.response_body.clone()
+            self.response_body.clone().map(|body| self.sanitize_for_elasticsearch(body))
         };
+        
+        // Sanitize request body for Elasticsearch
+        let request_data = self.request_body.clone().map(|body| self.sanitize_for_elasticsearch(body));
         
         let attributes = LogAttributes {
             id: self.id.clone().unwrap_or_else(|| format!("msg_{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("unknown"))),
@@ -231,9 +241,10 @@ impl RequestMetrics {
             project_id: self.project_id.clone(),
             provider: self.provider.clone(),
             model: self.model.clone(),
-            request: self.request_body.clone(),
+            request: request_data,
             response: response_data,
             metadata,
+            experiment_id: self.experiment_id.clone(),
         };
         
         let resource = ResourceInfo::default();
@@ -244,5 +255,42 @@ impl RequestMetrics {
             "name": "ai_gateway_request_log",
             "attributes": attributes
         })
+    }
+    
+    /// Sanitize complex JSON structures for Elasticsearch
+    /// This converts message content objects to strings to prevent mapping errors
+    fn sanitize_for_elasticsearch(&self, mut value: Value) -> Value {
+        // Handle the case where we have a message array with complex content
+        if let Some(messages) = value.get_mut("messages").and_then(|m| m.as_array_mut()) {
+            for message in messages {
+                if let Some(content) = message.get_mut("content") {
+                    // If content is an object, convert it to a string representation
+                    if content.is_object() || content.is_array() {
+                        let content_str = content.to_string();
+                        *content = json!(content_str);
+                    }
+                }
+            }
+        }
+        
+        // Handle nested content in streamed_data field
+        if let Some(streamed_data) = value.get_mut("streamed_data").and_then(|sd| sd.as_array_mut()) {
+            for chunk in streamed_data {
+                if let Some(choices) = chunk.get_mut("choices").and_then(|c| c.as_array_mut()) {
+                    for choice in choices {
+                        if let Some(delta) = choice.get_mut("delta") {
+                            if let Some(content) = delta.get_mut("content") {
+                                if content.is_object() || content.is_array() {
+                                    let content_str = content.to_string();
+                                    *content = json!(content_str);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        value
     }
 } 

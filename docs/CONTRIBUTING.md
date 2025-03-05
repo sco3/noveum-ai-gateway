@@ -35,6 +35,22 @@ Thank you for considering contributing to the MagicAPI AI Gateway! We welcome co
    - Update documentation if your changes affect usage or setup.
    - Add comments to your code where necessary for clarity.
 
+## Future Work and Improvement Areas
+
+Here are some areas where contributions would be particularly valuable:
+
+1. **Implementing Prometheus Metrics Exporter**:
+   - Develop a well-tested Prometheus exporter for the telemetry system
+   - Implement appropriate metrics collection for AI request tracking
+   - Ensure compatibility with standard Prometheus monitoring setups
+   - Add documentation for Prometheus integration
+
+2. **Additional Improvement Areas**:
+   - Performance optimizations for high-traffic deployments
+   - Support for additional AI providers
+   - Enhanced error handling and retry mechanisms
+   - Improved documentation and examples
+
 ## Submitting a Pull Request
 
 1. **Push Your Changes**:
