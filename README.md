@@ -552,3 +552,65 @@ These headers will be included in the telemetry logs, allowing you to:
 - Segment analytics by experiment
 
 For more details, see the [Elasticsearch Integration Guide](docs/elasticsearch-integration.md) and [Telemetry Plugins Guide](docs/telemetry-plugins.md).
+
+## Testing
+
+MagicAPI Gateway includes comprehensive integration tests for all supported providers (OpenAI, Anthropic, GROQ, Fireworks, Together AI, and AWS Bedrock). These tests validate both non-streaming and streaming functionality.
+
+### Running Integration Tests
+
+1. Set up your test environment:
+   ```bash
+   # Copy the sample test environment file
+   cp tests/.env.test.example .env.test
+   
+   # Edit the file to add your API keys for the providers you want to test
+   nano .env.test
+   ```
+
+2. Start the gateway with ElasticSearch enabled:
+   ```bash
+   ENABLE_ELASTICSEARCH=true cargo run
+   ```
+
+3. Run the integration tests:
+   ```bash
+   # Run all tests
+   cargo test --test run_integration_tests -- --nocapture
+   
+   # Run tests for specific providers
+   cargo test --test run_integration_tests openai -- --nocapture
+   cargo test --test run_integration_tests anthropic -- --nocapture
+   cargo test --test run_integration_tests groq -- --nocapture
+   cargo test --test run_integration_tests fireworks -- --nocapture
+   cargo test --test run_integration_tests together -- --nocapture
+   ```
+
+### Test Environment Configuration
+
+Your `.env.test` file should include the following variables:
+
+```bash
+# Gateway URL (default: http://localhost:3000)
+GATEWAY_URL=http://localhost:3000
+
+# ElasticSearch Configuration (required for tests)
+ELASTICSEARCH_URL=http://localhost:9200
+ELASTICSEARCH_USERNAME=elastic
+ELASTICSEARCH_PASSWORD=your_elasticsearch_password
+ELASTICSEARCH_INDEX=ai-gateway-metrics
+
+# Provider API Keys - Add keys for the providers you want to test
+OPENAI_API_KEY=your_openai_api_key
+ANTHROPIC_API_KEY=your_anthropic_api_key
+GROQ_API_KEY=your_groq_api_key
+FIREWORKS_API_KEY=your_fireworks_api_key
+TOGETHER_API_KEY=your_together_api_key
+
+# AWS Bedrock Credentials
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+AWS_REGION=us-east-1
+```
+
+For detailed test documentation, please refer to the [Integration Tests README](tests/README.md).

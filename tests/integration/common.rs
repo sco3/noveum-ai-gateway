@@ -228,8 +228,7 @@ pub async fn run_non_streaming_test(config: &ProviderTestConfig) {
     
     // Search ElasticSearch for the request using gateway request ID
     let es_response = search_elasticsearch(gateway_request_id).await.expect("Failed to search ElasticSearch");
-    
-    println!("This is what we stored in ElasticSearch -> \n{:#?}", es_response);
+
     
     // Basic validation to fail early if something is obviously wrong
     let hits = es_response.get("hits").and_then(|h| h.get("hits")).expect("No hits in ElasticSearch response");
@@ -363,8 +362,6 @@ pub async fn run_streaming_test(config: &ProviderTestConfig) {
     
     // Search ElasticSearch for the request using gateway request ID
     let es_response = search_elasticsearch(gateway_request_id).await.expect("Failed to search ElasticSearch");
-    
-    println!("This is what we stored in ElasticSearch -> \n{:#?}", es_response);
     
     // Basic validation to fail early if something is obviously wrong
     let hits = es_response.get("hits").and_then(|h| h.get("hits")).expect("No hits in ElasticSearch response");
@@ -507,7 +504,7 @@ pub async fn validate_with_llm(
         This is what we stored in ElasticSearch -> \n{:#?}\n\n\n\
         Fields we really care about ->\n\
         tokens computation (match input_token, output_token, total_token). They can be named differently, so for validation check in the response from the ES log.\n\
-        IMPORTANT NOTE: For streaming responses, especially with OpenAI, the tokens may not be present in the response object. In this case, only validate tokens in metrics if they exist in the response object. If tokens are not in the response, they can be ignored.\n\
+        IMPORTANT NOTE: For streaming responses, the tokens may not be present in the response object. In this case, only validate tokens in metrics if they exist in the response object. If tokens are not in the response, they can be ignored.\n\
         There should be a valid request and response.\n\
         request-id\n\
         organisation+id or org_id\n\
@@ -520,7 +517,9 @@ pub async fn validate_with_llm(
         - provider_latency\n\
         - Model Mismatch like these are okay -> Request used '{model_name}', but logged request shows a different model name\n\n\n\
         and other metrics. So just tell me in JSON response did the test pass or fail?\n\
-        Which field failed?\n\n\
+        IMPORTANT: A mismatch in token counts is NOT an error. be smart and match prompt_tokens with input, completion with output and total with total tokens
+        and other metrics. So just tell me in JSON response did the test pass or fail?
+        Which field failed, de descriptive in error message with reason?
         IMPORTANT: Your response must be a valid JSON object in EXACTLY this format:\n\
         {{\n  \"test_result\": \"pass\",\n  \"failed_fields\": []\n}}\n\
         where test_result is either \"pass\" or \"fail\", and failed_fields is an array of field names that failed validation.\n\
@@ -532,7 +531,7 @@ pub async fn validate_with_llm(
         response_body,
         es_response
     );
-    
+    println!("Prompt: {}", prompt);
     // Create OpenAI request
     let openai_request = serde_json::json!({
         "model": "gpt-4o",

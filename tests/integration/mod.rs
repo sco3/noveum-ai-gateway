@@ -16,5 +16,8 @@
 pub mod common;
 pub mod openai_test;
 pub mod anthropic_test;
+pub mod groq_test;
+pub mod fireworks_test;
+pub mod together_test;
 
 // Add more provider test modules here as they are implemented 
