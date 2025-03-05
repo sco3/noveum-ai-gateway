@@ -313,4 +313,166 @@ Common issues and solutions:
 
 - [OpenTelemetry Documentation](https://opentelemetry.io/docs/)
 - [Elasticsearch API Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html)
-- [DataDog API Documentation](https://docs.datadoghq.com/api/) 
+- [DataDog API Documentation](https://docs.datadoghq.com/api/)
+
+## OpenTelemetry Compatible Log Format
+
+MagicAPI Gateway now supports OpenTelemetry compatible logs for all telemetry plugins. This structured format provides consistent logging across different exporters and makes it easier to integrate with observability platforms.
+
+### Log Structure
+
+```json
+{
+  "timestamp": "2025-03-05T16:03:20.123Z",
+  "resource": {
+    "service.name": "noveum_ai_gateway",
+    "service.version": "1.0.0",
+    "deployment.environment": "production"
+  },
+  "name": "ai_gateway_request_log",
+  "attributes": {
+    "id": "msg_29",
+    "thread_id": "thread_29",
+    "org_id": "org_123",
+    "user_id": "user_456",
+    "project_id": "proj_design",
+    "provider": "azure",
+    "model": "gpt-4-turbo",
+    "request": { /* Complete request object */ },
+    "response": { /* Complete response object */ },
+    "metadata": {
+      "project_id": "proj_design",
+      "project_name": "UX Design",
+      "latency": 6250,
+      "tokens": { "input": 48, "output": 865, "total": 913 },
+      "cost": 0.0456,
+      "status": "success",
+      "path": "/v1/chat/completions",
+      "method": "POST",
+      "request_size": 193,
+      "response_size": 52280,
+      "provider_latency": 255,
+      "status_code": 200,
+      "provider_status_code": 0,
+      "error_count": 0,
+      "error_type": null,
+      "provider_error_count": 0,
+      "provider_error_type": null
+    }
+  }
+}
+```
+
+### Working with the Log Format
+
+When creating new telemetry plugins, you should use the `to_otel_log()` method on the `RequestMetrics` struct to convert metrics to this format:
+
+```rust
+async fn export(&self, metrics: &RequestMetrics) -> Result<(), Box<dyn Error>> {
+    // Convert metrics to OpenTelemetry format
+    let document = metrics.to_otel_log();
+    
+    // Export the document to your telemetry system
+    // ...
+}
+```
+
+### Custom Values from Request Headers
+
+The gateway automatically extracts and includes these values from request headers:
+
+| Header Name | Field in Log |
+|-------------|--------------|
+| x-project-id | attributes.project_id |
+| x-organisation-id | attributes.org_id |
+| x-user-id | attributes.user_id |
+| x-experiment-id | experiment_id (for internal use) |
+
+## Example: Creating a PostgreSQL Exporter
+
+Here's an example of creating a PostgreSQL exporter using the OpenTelemetry format:
+
+```rust
+use super::TelemetryPlugin;
+use crate::telemetry::RequestMetrics;
+use crate::telemetry::metrics::MetricsExporter;
+use async_trait::async_trait;
+use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use std::error::Error;
+use tracing::{debug, error};
+
+pub struct PostgresPlugin {
+    pool: Pool<Postgres>,
+    table_name: String,
+}
+
+impl PostgresPlugin {
+    pub async fn new(
+        connection_string: String, 
+        table_name: String
+    ) -> Result<Self, Box<dyn Error>> {
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&connection_string)
+            .await?;
+            
+        // Ensure table exists
+        sqlx::query(&format!("
+            CREATE TABLE IF NOT EXISTS {} (
+                id SERIAL PRIMARY KEY,
+                timestamp TIMESTAMPTZ NOT NULL,
+                log_data JSONB NOT NULL
+            )
+        ", table_name))
+            .execute(&pool)
+            .await?;
+            
+        Ok(Self {
+            pool,
+            table_name,
+        })
+    }
+}
+
+#[async_trait]
+impl TelemetryPlugin for PostgresPlugin {
+    async fn export(&self, metrics: &RequestMetrics) -> Result<(), Box<dyn Error>> {
+        // Convert metrics to OpenTelemetry format
+        let document = metrics.to_otel_log();
+        let json_data = serde_json::to_value(&document)?;
+        
+        debug!("Sending metrics to PostgreSQL table: {}", self.table_name);
+        
+        // Insert into database
+        let result = sqlx::query(&format!(
+            "INSERT INTO {} (timestamp, log_data) VALUES ($1, $2)",
+            self.table_name
+        ))
+        .bind(chrono::Utc::now())
+        .bind(json_data)
+        .execute(&self.pool)
+        .await;
+        
+        if let Err(e) = result {
+            error!("Failed to insert metrics into PostgreSQL: {}", e);
+            return Err(e.into());
+        }
+        
+        Ok(())
+    }
+
+    fn name(&self) -> &str {
+        "postgres"
+    }
+}
+
+#[async_trait]
+impl MetricsExporter for PostgresPlugin {
+    async fn export_metrics(&self, metrics: RequestMetrics) -> Result<(), Box<dyn Error>> {
+        self.export(&metrics).await
+    }
+
+    fn name(&self) -> &str {
+        "postgres"
+    }
+} 

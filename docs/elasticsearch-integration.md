@@ -137,29 +137,119 @@ env:
 
 ## Collected Metrics
 
-The Elasticsearch plugin collects and exports the following metrics for each request:
+The Elasticsearch plugin collects and exports the following metrics for each request in an OpenTelemetry compatible format:
 
-| Metric | Description |
-|--------|-------------|
-| `timestamp` | Time when the request was processed |
-| `provider` | AI provider name (openai, anthropic, etc.) |
-| `model` | Model name used for the request |
-| `path` | API endpoint path |
-| `method` | HTTP method (GET, POST, etc.) |
-| `total_latency_ms` | Total request processing time in milliseconds |
-| `provider_latency_ms` | Time spent waiting for the provider response |
-| `request_size` | Size of the request in bytes |
-| `response_size` | Size of the response in bytes |
-| `input_tokens` | Number of input tokens (if available) |
-| `output_tokens` | Number of output tokens (if available) |
-| `total_tokens` | Total tokens used (if available) |
-| `status_code` | HTTP status code of the response |
-| `provider_status_code` | Status code from the provider |
-| `error_count` | Number of errors encountered |
-| `error_type` | Type of error (if any) |
-| `provider_error_count` | Number of provider errors |
-| `provider_error_type` | Type of provider error (if any) |
-| `cost` | Estimated cost of the request (if available) |
+```json
+{
+  "timestamp": "2025-03-05T16:03:20.123Z",
+  "resource": {
+    "service.name": "noveum_ai_gateway",
+    "service.version": "1.0.0",
+    "deployment.environment": "production"
+  },
+  "name": "ai_gateway_request_log",
+  "attributes": {
+    "id": "msg_29",
+    "thread_id": "thread_29",
+    "org_id": "org_123",
+    "user_id": "user_456",
+    "project_id": "proj_design",
+    "provider": "azure",
+    "model": "gpt-4-turbo",
+    "request": {
+      "model": "gpt-4-turbo",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Sample request content..."
+        }
+      ],
+      "temperature": 0.7
+    },
+    "response": {
+      "id": "chatcmpl-az-gpt4-001",
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "Sample response content..."
+          },
+          "finish_reason": "stop"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 48,
+        "completion_tokens": 865,
+        "total_tokens": 913
+      }
+    },
+    "metadata": {
+      "project_id": "proj_design",
+      "project_name": "UX Design",
+      "latency": 6250,
+      "tokens": { "input": 48, "output": 865, "total": 913 },
+      "cost": 0.0456,
+      "status": "success",
+      "path": "/v1/chat/completions",
+      "method": "POST",
+      "request_size": 193,
+      "response_size": 52280,
+      "provider_latency": 255,
+      "status_code": 200,
+      "provider_status_code": 0,
+      "error_count": 0,
+      "error_type": null,
+      "provider_error_count": 0,
+      "provider_error_type": null
+    }
+  }
+}
+```
+
+### Fields Explanation
+
+#### Top Level
+- `timestamp`: Time when the request was processed (ISO 8601 format)
+- `resource`: Information about the service/deployment
+- `name`: Log name identifier
+- `attributes`: Detailed request information
+
+#### Resource
+- `service.name`: The name of the service
+- `service.version`: The version of the gateway
+- `deployment.environment`: The deployment environment (production, development, etc.)
+
+#### Attributes
+- **Basic identifying fields**:
+  - `id`: Unique message ID
+  - `thread_id`: Unique thread ID for conversation
+  - `org_id`: Organization identifier (from header)
+  - `user_id`: User identifier (from header)
+  - `project_id`: Project identifier (from header)
+- **Provider/model details**:
+  - `provider`: AI provider name
+  - `model`: Model name
+- **Request/Response objects**:
+  - `request`: Complete request payload
+  - `response`: Complete response payload
+- **Metadata**:
+  - `project_id`: Project identifier
+  - `project_name`: Project name (if available)
+  - `latency`: Total request processing time in milliseconds
+  - `tokens`: Token usage information (input, output, total)
+  - `cost`: Estimated cost of the request
+  - `status`: Request status (success or error)
+  - `path`: API endpoint path
+  - `method`: HTTP method
+  - `request_size`: Size of the request in bytes
+  - `response_size`: Size of the response in bytes
+  - `provider_latency`: Time spent waiting for the provider response
+  - `status_code`: HTTP status code of the response
+  - `provider_status_code`: Status code from the provider
+  - `error_count`: Number of errors encountered
+  - `error_type`: Type of error (if any)
+  - `provider_error_count`: Number of provider errors
+  - `provider_error_type`: Type of provider error (if any)
 
 ## Kibana Integration (Optional)
 

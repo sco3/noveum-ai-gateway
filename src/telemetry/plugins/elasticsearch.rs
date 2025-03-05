@@ -7,7 +7,6 @@ use elasticsearch::{
     http::transport::{Transport, TransportBuilder, SingleNodeConnectionPool},
     Elasticsearch, IndexParts,
 };
-use serde_json::json;
 use std::error::Error;
 use tracing::{debug, error};
 
@@ -42,27 +41,8 @@ impl ElasticsearchPlugin {
 #[async_trait]
 impl TelemetryPlugin for ElasticsearchPlugin {
     async fn export(&self, metrics: &RequestMetrics) -> Result<(), Box<dyn Error>> {
-        let document = json!({
-            "timestamp": chrono::Utc::now(),
-            "provider": metrics.provider,
-            "model": metrics.model,
-            "path": metrics.path,
-            "method": metrics.method,
-            "total_latency_ms": metrics.total_latency.as_millis(),
-            "provider_latency_ms": metrics.provider_latency.as_millis(),
-            "request_size": metrics.request_size,
-            "response_size": metrics.response_size,
-            "input_tokens": metrics.input_tokens,
-            "output_tokens": metrics.output_tokens,
-            "total_tokens": metrics.total_tokens,
-            "status_code": metrics.status_code,
-            "provider_status_code": metrics.provider_status_code,
-            "error_count": metrics.error_count,
-            "error_type": metrics.error_type,
-            "provider_error_count": metrics.provider_error_count,
-            "provider_error_type": metrics.provider_error_type,
-            "cost": metrics.cost,
-        });
+        // Convert metrics to OpenTelemetry format
+        let document = metrics.to_otel_log();
 
         debug!("Sending metrics to Elasticsearch index: {}", self.index);
         

@@ -521,3 +521,34 @@ After publishing, verify:
 ## Testing Deployment
 
 MagicAPI provides a testing deployment of the AI Gateway, hosted in our London data centre. This deployment is intended for testing and evaluation purposes only, and should not be used for production workloads.
+
+## 📊 OpenTelemetry Logging
+
+MagicAPI AI Gateway now supports OpenTelemetry compatible logs for enhanced observability. The Gateway can export detailed request logs with a rich structured format that includes complete request/response details and performance metrics.
+
+### Tracking Headers
+
+You can add custom tracking information to your requests that will be included in the logs:
+
+```bash
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "x-provider: openai" \
+  -H "Authorization: Bearer your-openai-api-key" \
+  -H "x-project-id: your-project-id" \
+  -H "x-organisation-id: your-org-id" \
+  -H "x-user-id: your-user-id" \
+  -d '{
+    "model": "gpt-4",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+These headers will be included in the telemetry logs, allowing you to:
+
+- Track usage by project
+- Monitor costs per organization
+- Analyze performance by user
+- Segment analytics by experiment
+
+For more details, see the [Elasticsearch Integration Guide](docs/elasticsearch-integration.md) and [Telemetry Plugins Guide](docs/telemetry-plugins.md).

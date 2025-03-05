@@ -19,6 +19,8 @@ impl MetricsExporter for PrometheusExporter {
             ("provider", metrics.provider.clone()),
             ("model", metrics.model.clone()),
             ("path", metrics.path.clone()),
+            ("project_id", metrics.project_id.clone().unwrap_or_default()),
+            ("org_id", metrics.org_id.clone().unwrap_or_default()),
         ];
 
         // Record latency metrics

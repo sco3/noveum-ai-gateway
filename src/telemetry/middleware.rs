@@ -35,6 +35,31 @@ pub async fn metrics_middleware(
     let path = req.uri().path().to_string();
     let method = req.method().to_string();
 
+    // Extract project_id, org_id, and user_id from headers
+    let project_id = req
+        .headers()
+        .get("x-project-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+        
+    let org_id = req
+        .headers()
+        .get("x-organisation-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+        
+    let user_id = req
+        .headers()
+        .get("x-user-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+        
+    let experiment_id = req
+        .headers()
+        .get("x-experiment-id")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
     debug!("Received request: provider={}, path={}, method={}", provider, path, method);
 
     // Get metrics extractor for this provider
@@ -45,12 +70,13 @@ pub async fn metrics_middleware(
     let original_uri = req.uri().clone();
     let original_headers = req.headers().clone();
     
-    // Convert body while preserving the original request method
-    let (req_size, body) = {
+    // Extract and store the original request body
+    let (req_size, req_body, body) = {
         let bytes = to_bytes(req.into_body(), usize::MAX).await.unwrap_or_default();
         let size = bytes.len();
+        let req_body = serde_json::from_slice(&bytes).ok();
         debug!("Request body size: {} bytes", size);
-        (size, Body::from(bytes))
+        (size, req_body, Body::from(bytes))
     };
 
     // Reconstruct request with original values
@@ -81,8 +107,13 @@ pub async fn metrics_middleware(
             path,
             method,
             req_size,
+            req_body,
             start,
             metrics_extractor,
+            project_id,
+            org_id,
+            user_id,
+            experiment_id,
         )
         .await
     } else {
@@ -93,8 +124,13 @@ pub async fn metrics_middleware(
             path,
             method,
             req_size,
+            req_body,
             start,
             metrics_extractor,
+            project_id,
+            org_id,
+            user_id,
+            experiment_id,
         )
         .await
     }
@@ -107,8 +143,13 @@ async fn handle_regular_response(
     path: String,
     method: String,
     req_size: usize,
+    req_body: Option<Value>,
     start: Instant,
     metrics_extractor: Box<dyn MetricsExtractor>,
+    project_id: Option<String>,
+    org_id: Option<String>,
+    user_id: Option<String>,
+    experiment_id: Option<String>,
 ) -> Response<Body> {
     let (parts, body) = response.into_parts();
     let bytes = to_bytes(body, usize::MAX).await.unwrap_or_default();
@@ -117,10 +158,10 @@ async fn handle_regular_response(
     debug!("Regular response body size: {} bytes", resp_size);
 
     // Extract metrics from response body
-    let provider_metrics = if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-        metrics_extractor.extract_metrics(&json)
+    let (provider_metrics, resp_body) = if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+        (metrics_extractor.extract_metrics(&json), Some(json))
     } else {
-        ProviderMetrics::default()
+        (ProviderMetrics::default(), None)
     };
 
     debug!("Extracted provider metrics: {:?}", provider_metrics);
@@ -139,6 +180,11 @@ async fn handle_regular_response(
         total_tokens: provider_metrics.total_tokens,
         status_code: parts.status.as_u16(),
         cost: provider_metrics.cost,
+        project_id,
+        org_id,
+        user_id,
+        request_body: req_body,
+        response_body: resp_body,
         ..Default::default()
     };
 
@@ -154,8 +200,13 @@ async fn handle_streaming_response(
     path: String,
     method: String,
     req_size: usize,
+    req_body: Option<Value>,
     start: Instant,
     metrics_extractor: Box<dyn MetricsExtractor>,
+    project_id: Option<String>,
+    org_id: Option<String>,
+    user_id: Option<String>,
+    experiment_id: Option<String>,
 ) -> Response<Body> {
     let (parts, body) = response.into_parts();
     let (tx, rx) = mpsc::channel::<Result<Bytes, Error>>(100);
@@ -168,6 +219,7 @@ async fn handle_streaming_response(
         let mut response_size = 0;
         let mut accumulated_metrics = ProviderMetrics::default();
         let mut final_metrics_found = false;
+        let mut resp_body = None;
 
         let mut stream = body.into_data_stream();
         while let Some(chunk) = stream.next().await {
@@ -190,6 +242,11 @@ async fn handle_streaming_response(
             }
         }
 
+        // Try to parse the accumulated response
+        if !accumulated_text.is_empty() {
+            resp_body = serde_json::from_str(&accumulated_text).ok();
+        }
+
         // Record final metrics if we found them
         if final_metrics_found {
             let metrics = RequestMetrics {
@@ -206,6 +263,11 @@ async fn handle_streaming_response(
                 total_tokens: accumulated_metrics.total_tokens,
                 status_code: parts.status.as_u16(),
                 cost: accumulated_metrics.cost,
+                project_id,
+                org_id,
+                user_id,
+                request_body: req_body,
+                response_body: resp_body,
                 ..Default::default()
             };
 
