@@ -1,5 +1,6 @@
 use super::Provider;
 use crate::error::AppError;
+use crate::telemetry::provider_metrics::{MetricsExtractor, ProviderMetrics};
 use async_trait::async_trait;
 use aws_event_stream_parser::{parse_message, Message};
 use axum::{
@@ -10,6 +11,7 @@ use futures_util::StreamExt;
 use parking_lot::RwLock;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, error, warn};
 
 /// Constants for default values
@@ -356,5 +358,60 @@ impl Provider for BedrockProvider {
             );
             Ok(response)
         }
+    }
+}
+
+// Add a metrics extractor for Bedrock
+pub struct BedrockMetricsExtractor;
+
+impl MetricsExtractor for BedrockMetricsExtractor {
+    fn extract_metrics(&self, response_body: &Value) -> ProviderMetrics {
+        debug!("Extracting Bedrock metrics from response: {}", response_body);
+        let mut metrics = ProviderMetrics::default();
+        
+        if let Some(usage) = response_body.get("usage") {
+            debug!("Found Bedrock usage data: {:?}", usage);
+            metrics.input_tokens = usage.get("inputTokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+            metrics.output_tokens = usage.get("outputTokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+            metrics.total_tokens = usage.get("totalTokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+            debug!("Extracted Bedrock tokens - input: {:?}, output: {:?}, total: {:?}", 
+                metrics.input_tokens, metrics.output_tokens, metrics.total_tokens);
+        }
+
+        if let Some(model) = response_body.get("model").and_then(|v| v.as_str()) {
+            debug!("Found Bedrock model: {}", model);
+            metrics.model = model.to_string();
+        }
+
+        if let (Some(total_tokens), Some(model)) = (metrics.total_tokens, response_body.get("model")) {
+            metrics.cost = Some(calculate_bedrock_cost(model.as_str().unwrap_or(""), total_tokens));
+            debug!("Calculated Bedrock cost: {:?} for model {} and {} tokens", 
+                metrics.cost, metrics.model, total_tokens);
+        }
+
+        debug!("Final extracted Bedrock metrics: {:?}", metrics);
+        metrics
+    }
+    
+    // Override with Bedrock-specific streaming metrics extraction
+    fn try_extract_provider_specific_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
+        debug!("Attempting to extract metrics from Bedrock streaming chunk: {}", chunk);
+        if let Ok(json) = serde_json::from_str::<Value>(chunk) {
+            if json.get("usage").is_some() {
+                debug!("Found usage in Bedrock streaming chunk");
+                return Some(self.extract_metrics(&json));
+            }
+        }
+        None
+    }
+}
+
+// Helper function for Bedrock-specific cost calculation
+fn calculate_bedrock_cost(model: &str, total_tokens: u32) -> f64 {
+    match model {
+        m if m.contains("claude") => (total_tokens as f64) * 0.00001102,
+        m if m.contains("titan") => (total_tokens as f64) * 0.00001,
+        m if m.contains("llama2") => (total_tokens as f64) * 0.00001,
+        _ => 0.0,
     }
 }
