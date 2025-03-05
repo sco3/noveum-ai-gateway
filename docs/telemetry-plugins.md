@@ -363,6 +363,95 @@ MagicAPI Gateway now supports OpenTelemetry compatible logs for all telemetry pl
 }
 ```
 
+### Streaming Response Format
+
+For streaming responses, the gateway captures both the final accumulated response and all individual streaming chunks. This provides complete visibility into the streaming process without impacting performance:
+
+```json
+{
+  "timestamp": "2025-03-05T16:25:30.789Z",
+  "resource": {
+    "service.name": "noveum_ai_gateway",
+    "service.version": "1.0.0",
+    "deployment.environment": "production"
+  },
+  "name": "ai_gateway_request_log",
+  "attributes": {
+    "id": "msg_31",
+    "thread_id": "thread_31",
+    "org_id": "org_123",
+    "user_id": "user_456",
+    "project_id": "proj_chat",
+    "provider": "groq",
+    "model": "llama-3.1-8b-instant",
+    "request": {
+      "model": "llama-3.1-8b-instant",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Write a poem"
+        }
+      ],
+      "stream": true,
+      "max_tokens": 500
+    },
+    "response": {
+      "id": "chatcmpl-ec855684-8495-420d-8807-9259228ac717",
+      "model": "llama-3.1-8b-instant",
+      "choices": [
+        {
+          "delta": {
+            "role": "assistant",
+            "content": "\"Moonlit Dreams\"\n\nThe night is dark..."
+          }
+        }
+      ],
+      "streamed_data": [
+        {
+          "nonce": "0955",
+          "id": "chatcmpl-ec855684-8495-420d-8807-9259228ac717",
+          "object": "chat.completion.chunk",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {
+                "role": "assistant",
+                "content": ""
+              },
+              "finish_reason": null
+            }
+          ]
+        },
+        // Additional chunks...
+        {
+          "nonce": "d4fe",
+          "choices": [
+            {
+              "index": 0,
+              "delta": {},
+              "finish_reason": "stop"
+            }
+          ],
+          "x_groq": {
+            "usage": {
+              "prompt_tokens": 38,
+              "completion_tokens": 256,
+              "total_tokens": 294
+            }
+          }
+        }
+      ]
+    },
+    "metadata": {
+      "latency": 1244,
+      "tokens": { "input": 38, "output": 256, "total": 294 },
+      "cost": 0.0263,
+      "status": "success"
+    }
+  }
+}
+```
+
 ### Working with the Log Format
 
 When creating new telemetry plugins, you should use the `to_otel_log()` method on the `RequestMetrics` struct to convert metrics to this format:
@@ -376,6 +465,13 @@ async fn export(&self, metrics: &RequestMetrics) -> Result<(), Box<dyn Error>> {
     // ...
 }
 ```
+
+For streaming responses, the gateway automatically:
+1. Captures each streaming chunk as it's received
+2. Stores all chunks in the `streamed_data` array
+3. Includes both the final response and all chunks in the log
+
+This approach ensures complete visibility into streaming responses without impacting performance, as chunks are collected asynchronously during normal processing.
 
 ### Custom Values from Request Headers
 

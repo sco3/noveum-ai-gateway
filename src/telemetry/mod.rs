@@ -131,6 +131,10 @@ pub struct RequestMetrics {
     // Original request and response
     pub request_body: Option<Value>,
     pub response_body: Option<Value>,
+    
+    // Streaming response data
+    pub streamed_data: Option<Vec<Value>>,
+    pub is_streaming: bool,
 }
 
 impl Default for RequestMetrics {
@@ -162,6 +166,8 @@ impl Default for RequestMetrics {
             project_name: None,
             request_body: None,
             response_body: None,
+            streamed_data: None,
+            is_streaming: false,
         }
     }
 }
@@ -201,6 +207,22 @@ impl RequestMetrics {
             provider_error_type: self.provider_error_type.clone(),
         };
         
+        // Prepare the response data based on whether it's streaming or not
+        let response_data = if self.is_streaming && self.streamed_data.is_some() {
+            // For streaming responses, include both the final response and the streamed chunks
+            let mut response_value = self.response_body.clone().unwrap_or(json!({}));
+            
+            // Add streamed_data field to the response
+            if let Some(streamed_chunks) = &self.streamed_data {
+                response_value["streamed_data"] = json!(streamed_chunks);
+            }
+            
+            Some(response_value)
+        } else {
+            // For non-streaming responses, just include the response body
+            self.response_body.clone()
+        };
+        
         let attributes = LogAttributes {
             id: self.id.clone().unwrap_or_else(|| format!("msg_{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("unknown"))),
             thread_id: self.thread_id.clone().unwrap_or_else(|| format!("thread_{}", Uuid::new_v4().to_string().split('-').next().unwrap_or("unknown"))),
@@ -210,7 +232,7 @@ impl RequestMetrics {
             provider: self.provider.clone(),
             model: self.model.clone(),
             request: self.request_body.clone(),
-            response: self.response_body.clone(),
+            response: response_data,
             metadata,
         };
         

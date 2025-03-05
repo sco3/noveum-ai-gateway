@@ -220,6 +220,7 @@ async fn handle_streaming_response(
         let mut accumulated_metrics = ProviderMetrics::default();
         let mut final_metrics_found = false;
         let mut resp_body = None;
+        let mut streamed_chunks = Vec::new();
 
         let mut stream = body.into_data_stream();
         while let Some(chunk) = stream.next().await {
@@ -229,6 +230,26 @@ async fn handle_streaming_response(
 
                 if let Ok(chunk_str) = String::from_utf8(bytes.to_vec()) {
                     accumulated_text.push_str(&chunk_str);
+                    
+                    // Try to parse the chunk as JSON and store it
+                    if let Ok(json_chunk) = serde_json::from_str::<Value>(&chunk_str) {
+                        // Only store non-empty chunks
+                        if !json_chunk.is_null() && !json_chunk.as_object().map_or(true, |o| o.is_empty()) {
+                            streamed_chunks.push(json_chunk);
+                        }
+                    } else {
+                        // For SSE format, try to extract JSON from each line
+                        for line in chunk_str.lines() {
+                            if line.starts_with("data: ") {
+                                let json_str = line.trim_start_matches("data: ");
+                                if json_str != "[DONE]" {
+                                    if let Ok(json_data) = serde_json::from_str::<Value>(json_str) {
+                                        streamed_chunks.push(json_data);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     
                     // Try to extract metrics from this chunk
                     if let Some(metrics) = metrics_extractor.extract_streaming_metrics(&chunk_str) {
@@ -268,6 +289,8 @@ async fn handle_streaming_response(
                 user_id,
                 request_body: req_body,
                 response_body: resp_body,
+                streamed_data: if !streamed_chunks.is_empty() { Some(streamed_chunks) } else { None },
+                is_streaming: true,
                 ..Default::default()
             };
 
