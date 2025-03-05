@@ -151,6 +151,10 @@ async fn handle_regular_response(
     user_id: Option<String>,
     experiment_id: Option<String>,
 ) -> Response<Body> {
+    // Time to first byte is essentially the time taken to get the response headers
+    let ttfb = start.elapsed();
+    debug!("Time to first byte (TTFB): {:?}", ttfb);
+
     let (parts, body) = response.into_parts();
     let bytes = to_bytes(body, usize::MAX).await.unwrap_or_default();
     let resp_size = bytes.len();
@@ -182,6 +186,7 @@ async fn handle_regular_response(
         model: provider_metrics.model,
         total_latency: start.elapsed(),
         provider_latency: provider_metrics.provider_latency,
+        ttfb,  // Add the TTFB measurement
         request_size: req_size,
         response_size: resp_size,
         input_tokens: provider_metrics.input_tokens,
@@ -219,6 +224,10 @@ async fn handle_streaming_response(
     user_id: Option<String>,
     experiment_id: Option<String>,
 ) -> Response<Body> {
+    // Time to first byte is essentially the time taken to get the response headers
+    let ttfb = start.elapsed();
+    debug!("Time to first byte for streaming response (TTFB): {:?}", ttfb);
+
     let (parts, body) = response.into_parts();
     let (tx, rx) = mpsc::channel::<Result<Bytes, Error>>(100);
 
@@ -301,19 +310,22 @@ async fn handle_streaming_response(
             resp_body = serde_json::from_str(&accumulated_text).ok();
         }
         
-        // Track if this is OpenAI streaming by checking provider name
+        // Track if this is a provider that requires special streaming handling
         let is_openai_streaming = provider == "openai";
+        let is_groq_streaming = provider == "groq";
+        let needs_special_streaming_handling = is_openai_streaming || is_groq_streaming;
 
-        // For OpenAI streaming, if we have no metrics but we finished reading the stream,
-        // we should create a minimal metrics record with what we know
-        if !final_metrics_found && is_openai_streaming && !streamed_chunks.is_empty() {
+        // For providers that don't always include token data in streaming responses,
+        // create a minimal metrics record with what we know
+        if !final_metrics_found && needs_special_streaming_handling && !streamed_chunks.is_empty() {
             // Try to extract model from the stream chunks
             let model = streamed_chunks.iter()
                 .find_map(|chunk| chunk.get("model").and_then(|m| m.as_str()))
-                .unwrap_or("unknown")
+                .unwrap_or(if is_groq_streaming { "llama" } else { "unknown" })
                 .to_string();
                 
-            debug!("Creating partial metrics for OpenAI streaming response with model: {}", model);
+            debug!("Creating partial metrics for {} streaming response with model: {}", 
+                   provider, model);
             
             // Rough token estimation based on accumulated text length
             // Approximation: ~4 characters per token for English text
@@ -346,6 +358,7 @@ async fn handle_streaming_response(
                 model: accumulated_metrics.model,
                 total_latency: start.elapsed(),
                 provider_latency: accumulated_metrics.provider_latency,
+                ttfb,  // Add the TTFB measurement
                 request_size: req_size,
                 response_size,
                 input_tokens: accumulated_metrics.input_tokens,

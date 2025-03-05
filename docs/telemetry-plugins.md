@@ -344,6 +344,7 @@ MagicAPI Gateway now supports OpenTelemetry compatible logs for all telemetry pl
       "project_id": "proj_design",
       "project_name": "UX Design",
       "latency": 6250,
+      "ttfb": 120,  // Time to First Byte in milliseconds
       "tokens": { "input": 48, "output": 865, "total": 913 },
       "cost": 0.0456,
       "status": "success",
@@ -445,6 +446,7 @@ For streaming responses, the gateway captures both the final accumulated respons
     },
     "metadata": {
       "latency": 1244,
+      "ttfb": 78,  // Time to first byte for streaming response
       "tokens": { "input": 38, "output": 256, "total": 294 },
       "cost": 0.0263,
       "status": "success"
@@ -518,7 +520,10 @@ impl PostgresPlugin {
             CREATE TABLE IF NOT EXISTS {} (
                 id SERIAL PRIMARY KEY,
                 timestamp TIMESTAMPTZ NOT NULL,
-                log_data JSONB NOT NULL
+                log_data JSONB NOT NULL,
+                -- Important fields extracted for easy querying
+                ttfb INTEGER,  -- Time to First Byte in milliseconds
+                latency INTEGER
             )
         ", table_name))
             .execute(&pool)
@@ -540,13 +545,19 @@ impl TelemetryPlugin for PostgresPlugin {
         
         debug!("Sending metrics to PostgreSQL table: {}", self.table_name);
         
+        // Extract TTFB and latency for direct querying
+        let ttfb = document["attributes"]["metadata"]["ttfb"].as_u64().unwrap_or(0) as i32;
+        let latency = document["attributes"]["metadata"]["latency"].as_u64().unwrap_or(0) as i32;
+        
         // Insert into database
         let result = sqlx::query(&format!(
-            "INSERT INTO {} (timestamp, log_data) VALUES ($1, $2)",
+            "INSERT INTO {} (timestamp, log_data, ttfb, latency) VALUES ($1, $2, $3, $4)",
             self.table_name
         ))
         .bind(chrono::Utc::now())
         .bind(json_data)
+        .bind(ttfb)
+        .bind(latency)
         .execute(&self.pool)
         .await;
         

@@ -66,6 +66,7 @@ pub struct LogMetadata {
     pub project_id: Option<String>,
     pub project_name: Option<String>,
     pub latency: u128,
+    pub ttfb: u128,  // Time to First Byte in milliseconds
     pub tokens: TokenInfo,
     pub cost: Option<f64>,
     pub status: String,
@@ -101,6 +102,7 @@ pub struct RequestMetrics {
     // Timing metrics
     pub total_latency: Duration,
     pub provider_latency: Duration,
+    pub ttfb: Duration,  // Time to First Byte - time taken to receive the first byte of the response
     
     // Size metrics
     pub request_size: usize,
@@ -150,6 +152,7 @@ impl Default for RequestMetrics {
             method: String::new(),
             total_latency: Duration::default(),
             provider_latency: Duration::default(),
+            ttfb: Duration::default(),
             request_size: 0,
             response_size: 0,
             input_tokens: None,
@@ -197,6 +200,7 @@ impl RequestMetrics {
             project_id: self.project_id.clone(),
             project_name: self.project_name.clone(),
             latency: self.total_latency.as_millis(),
+            ttfb: self.ttfb.as_millis(),
             tokens: token_info,
             cost: self.cost,
             status: status.to_string(),

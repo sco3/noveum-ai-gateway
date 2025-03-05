@@ -2,6 +2,11 @@ use serde_json::Value;
 use std::time::Duration;
 use tracing::debug;
 
+/// Represents metrics collected from an LLM provider response
+///
+/// This struct contains all the relevant metrics data extracted from provider responses,
+/// including token counts, cost calculations, model information, and latency.
+/// All token fields are optional to handle cases where providers don't include this data.
 #[derive(Debug, Clone, Default)]
 pub struct ProviderMetrics {
     pub input_tokens: Option<u32>,
@@ -12,14 +17,173 @@ pub struct ProviderMetrics {
     pub provider_latency: Duration,
 }
 
-pub trait MetricsExtractor: Send + Sync {
-    fn extract_metrics(&self, response_body: &Value) -> ProviderMetrics;
-    fn extract_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics>;
+impl ProviderMetrics {
+    /// Estimates token count from raw text content
+    ///
+    /// This uses a simple heuristic of approximately 4 characters per token for English text.
+    /// More precise estimation would require provider-specific tokenizers.
+    ///
+    /// # Arguments
+    /// * `text` - The text to estimate token count for
+    ///
+    /// # Returns
+    /// Estimated token count as u32
+    pub fn estimate_tokens_from_text(text: &str) -> u32 {
+        if text.is_empty() {
+            return 0;
+        }
+        
+        // Rough token estimation based on text length
+        // Approximation: ~4 characters per token for English text
+        // More accurate estimation would require tokenizer-specific logic
+        ((text.len() as f64) / 4.0).ceil() as u32
+    }
+    
+    /// Creates partial metrics with available information
+    ///
+    /// This is useful for streaming responses where complete token metrics
+    /// are not available, but we can estimate output tokens from accumulated text.
+    ///
+    /// # Arguments
+    /// * `model` - The model name string
+    /// * `accumulated_text` - Text received so far to estimate tokens
+    ///
+    /// # Returns
+    /// A ProviderMetrics instance with partial information
+    pub fn create_partial_metrics(model: String, accumulated_text: &str) -> Self {
+        let output_tokens = if !accumulated_text.is_empty() {
+            Some(Self::estimate_tokens_from_text(accumulated_text))
+        } else {
+            None
+        };
+        
+        ProviderMetrics {
+            model,
+            provider_latency: Duration::from_millis(0),
+            output_tokens,
+            // We don't have input tokens or total tokens
+            ..Default::default()
+        }
+    }
 }
 
-// OpenAI-compatible metrics extractor
-pub struct OpenAIMetricsExtractor;
+/// The MetricsExtractor trait defines a layered approach to extracting metrics from provider responses
+///
+/// This architecture provides several key benefits:
+/// 1. **Layered Extraction**: Tries provider-specific extraction first, falls back to common patterns
+/// 2. **Extensibility**: New providers can be added by implementing just the parts they need to customize
+/// 3. **Safety Net**: Common patterns catch metrics when provider-specific logic fails
+/// 4. **Maintainability**: Clear separation between provider-specific and common logic
+///
+/// ## How to add a new provider:
+/// 1. Create a new struct for your provider: `struct MyProviderMetricsExtractor;`
+/// 2. Implement the required `extract_metrics` method
+/// 3. Optionally override `try_extract_provider_specific_streaming_metrics` if your provider 
+///    needs special handling for streaming responses
+/// 4. Update the `get_metrics_extractor` factory function to return your implementation
+///
+/// The default implementation will handle common patterns automatically.
+pub trait MetricsExtractor: Send + Sync {
+    /// Extract complete metrics from a full response body
+    ///
+    /// This is the primary method each provider must implement to extract 
+    /// metrics from a complete response.
+    ///
+    /// # Arguments
+    /// * `response_body` - The JSON response body from the provider
+    ///
+    /// # Returns
+    /// A ProviderMetrics instance with extracted data
+    fn extract_metrics(&self, response_body: &Value) -> ProviderMetrics;
+    
+    /// Extract metrics from streaming chunks
+    ///
+    /// This method implements a layered approach:
+    /// 1. First tries provider-specific extraction
+    /// 2. Falls back to common extraction patterns if that returns None
+    ///
+    /// This layered approach allows new providers to work out-of-the-box
+    /// while letting existing providers maintain their specialized logic.
+    ///
+    /// # Arguments
+    /// * `chunk` - A string containing a streaming chunk from the provider
+    ///
+    /// # Returns
+    /// Option<ProviderMetrics> with metrics if they could be extracted
+    fn extract_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
+        // First try provider-specific detection based on known patterns
+        if let Some(metrics) = self.try_extract_provider_specific_streaming_metrics(chunk) {
+            return Some(metrics);
+        }
+        
+        // Then fall back to common extraction patterns as a safety net
+        self.try_extract_common_streaming_metrics(chunk)
+    }
+    
+    /// Provider-specific implementation for streaming metrics
+    ///
+    /// Override this method to implement custom extraction logic for a specific provider.
+    /// The default implementation returns None, which causes the common extraction to be used.
+    ///
+    /// # Arguments
+    /// * `chunk` - A string containing a streaming chunk from the provider
+    ///
+    /// # Returns
+    /// Option<ProviderMetrics> with metrics if they could be extracted
+    fn try_extract_provider_specific_streaming_metrics(&self, _chunk: &str) -> Option<ProviderMetrics> {
+        None // Default is to skip provider-specific extraction
+    }
+    
+    /// Generic implementation that works for most providers
+    ///
+    /// This provides a safety net for new providers or when specific extraction fails.
+    /// It uses common patterns found across most LLM providers to identify and extract
+    /// whatever metrics information is available.
+    ///
+    /// # Arguments
+    /// * `chunk` - A string containing a streaming chunk from the provider
+    ///
+    /// # Returns
+    /// Option<ProviderMetrics> with metrics if they could be extracted
+    fn try_extract_common_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
+        debug!("Attempting common streaming metrics extraction for chunk");
+        
+        // Try to parse the chunk as JSON
+        if let Ok(json) = serde_json::from_str::<Value>(chunk) {
+            // If we have usage data, extract full metrics
+            if json.get("usage").is_some() {
+                debug!("Found usage in streaming chunk, extracting metrics");
+                return Some(self.extract_metrics(&json));
+            }
+            
+            // For any provider's streaming, extract what we can even if usage is missing
+            let model = json.get("model").and_then(|m| m.as_str()).unwrap_or("unknown").to_string();
+            
+            // Check for general indicators that this is a model output
+            let is_llm_response = 
+                json.get("choices").is_some() || 
+                json.get("completion").is_some() ||
+                json.get("delta").is_some() ||
+                json.get("finish_reason").is_some();
+                
+            if is_llm_response {
+                debug!("LLM streaming response detected in common handler, creating partial metrics");
+                return Some(ProviderMetrics {
+                    model,
+                    provider_latency: Duration::from_millis(0),
+                    // Leave token counts and cost as None
+                    ..Default::default()
+                });
+            }
+        }
+        
+        debug!("No metrics data found in common streaming handler");
+        None
+    }
+}
 
+// OpenAI-specific metrics extractor
+pub struct OpenAIMetricsExtractor;
 
 impl MetricsExtractor for OpenAIMetricsExtractor {
     fn extract_metrics(&self, response_body: &Value) -> ProviderMetrics {
@@ -49,13 +213,14 @@ impl MetricsExtractor for OpenAIMetricsExtractor {
         debug!("Final extracted metrics: {:?}", metrics);
         metrics
     }
-
-    fn extract_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
-        debug!("Attempting to extract metrics from streaming chunk: {}", chunk);
+    
+    // Override with OpenAI-specific streaming metrics extraction
+    fn try_extract_provider_specific_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
+        debug!("Attempting to extract metrics from OpenAI streaming chunk: {}", chunk);
         if let Ok(json) = serde_json::from_str::<Value>(chunk) {
             // If we have usage data, extract full metrics
             if json.get("usage").is_some() {
-                debug!("Found usage in streaming chunk, extracting metrics");
+                debug!("Found usage in OpenAI streaming chunk, extracting metrics");
                 return Some(self.extract_metrics(&json));
             }
             
@@ -73,7 +238,7 @@ impl MetricsExtractor for OpenAIMetricsExtractor {
                 });
             }
         }
-        debug!("No usage data found in streaming chunk");
+        debug!("No usage data found in OpenAI streaming chunk");
         None
     }
 }
@@ -108,8 +273,9 @@ impl MetricsExtractor for AnthropicMetricsExtractor {
 
         metrics
     }
-
-    fn extract_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
+    
+    // Anthropic doesn't need special streaming handling, use the default
+    fn try_extract_provider_specific_streaming_metrics(&self, _chunk: &str) -> Option<ProviderMetrics> {
         None // Anthropic handles metrics differently in streaming mode
     }
 }
@@ -145,8 +311,9 @@ impl MetricsExtractor for BedrockMetricsExtractor {
         debug!("Final extracted Bedrock metrics: {:?}", metrics);
         metrics
     }
-
-    fn extract_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
+    
+    // Override with Bedrock-specific streaming metrics extraction
+    fn try_extract_provider_specific_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
         debug!("Attempting to extract metrics from Bedrock streaming chunk: {}", chunk);
         if let Ok(json) = serde_json::from_str::<Value>(chunk) {
             if json.get("usage").is_some() {
@@ -220,8 +387,9 @@ impl MetricsExtractor for GroqMetricsExtractor {
         debug!("Final extracted Groq metrics: {:?}", metrics);
         metrics
     }
-
-    fn extract_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
+    
+    // Override with Groq-specific streaming metrics extraction
+    fn try_extract_provider_specific_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
         debug!("Attempting to extract metrics from Groq streaming chunk");
         
         // Split the chunk into lines and process each SSE line
@@ -242,29 +410,36 @@ impl MetricsExtractor for GroqMetricsExtractor {
                     return Some(self.extract_metrics(&json));
                 }
 
-                // Also check for finish_reason: "stop" as a backup
-                if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
-                    if let Some(first_choice) = choices.first() {
-                        if first_choice.get("finish_reason").and_then(|f| f.as_str()) == Some("stop") {
-                            let mut metrics = ProviderMetrics::default();
-                            
-                            if let Some(model) = json.get("model").and_then(|v| v.as_str()) {
-                                metrics.model = model.to_string();
-                            }
-
-                            // If we don't have x_groq data, use accumulated text size for estimation
-                            let response_text = json_str.len() as u32;
-                            let estimated_tokens = (response_text as f64 / 4.0).ceil() as u32;
-                            metrics.output_tokens = Some(estimated_tokens);
-                            metrics.total_tokens = Some(estimated_tokens);
-                            
-                            debug!("Using estimated metrics for Groq - tokens: {}", estimated_tokens);
-                            return Some(metrics);
-                        }
-                    }
+                // Extract model information for partial metrics
+                let model = json.get("model").and_then(|v| v.as_str()).unwrap_or("llama").to_string();
+                
+                // Check for either Groq-specific model names or the object type
+                if model.contains("llama") || 
+                   model.contains("gemma") || 
+                   json.get("object").and_then(|o| o.as_str()).unwrap_or("") == "chat.completion.chunk" {
+                    
+                    // Also check for finish_reason: "stop" as a better indicator of a final chunk
+                    let is_final_chunk = json.get("choices")
+                        .and_then(|c| c.as_array())
+                        .and_then(|choices| choices.first())
+                        .and_then(|choice| choice.get("finish_reason"))
+                        .and_then(|f| f.as_str())
+                        .is_some();
+                    
+                    debug!("Groq streaming chunk detected for model: {}, is_final: {}", model, is_final_chunk);
+                    
+                    // Create partial metrics with the model information
+                    return Some(ProviderMetrics {
+                        model,
+                        provider_latency: Duration::from_millis(0),
+                        // We don't have token counts yet
+                        ..Default::default()
+                    });
                 }
             }
         }
+        
+        debug!("No usage data found in Groq streaming chunk");
         None
     }
 }
@@ -278,7 +453,17 @@ fn calculate_groq_cost(model: &str, total_tokens: u32) -> f64 {
     }
 }
 
-// Factory function to get the appropriate metrics extractor
+/// Factory function to get the appropriate metrics extractor for a provider
+///
+/// This function maps provider names to their specific MetricsExtractor implementations.
+/// For new providers without a specific implementation, the OpenAIMetricsExtractor is used
+/// as a fallback, which provides reasonable extraction using common patterns.
+///
+/// # Arguments
+/// * `provider` - The provider name as a string
+///
+/// # Returns
+/// A boxed dyn MetricsExtractor trait object for the specified provider
 pub fn get_metrics_extractor(provider: &str) -> Box<dyn MetricsExtractor> {
     match provider {
         "anthropic" => Box::new(AnthropicMetricsExtractor),
