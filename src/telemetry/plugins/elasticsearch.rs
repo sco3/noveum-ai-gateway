@@ -1,5 +1,6 @@
 use super::TelemetryPlugin;
 use crate::telemetry::RequestMetrics;
+use crate::telemetry::metrics::MetricsExporter;
 use async_trait::async_trait;
 use elasticsearch::{
     auth::Credentials,
@@ -81,6 +82,17 @@ impl TelemetryPlugin for ElasticsearchPlugin {
         }
 
         Ok(())
+    }
+
+    fn name(&self) -> &str {
+        "elasticsearch"
+    }
+}
+
+#[async_trait]
+impl MetricsExporter for ElasticsearchPlugin {
+    async fn export_metrics(&self, metrics: RequestMetrics) -> Result<(), Box<dyn Error>> {
+        self.export(&metrics).await
     }
 
     fn name(&self) -> &str {

@@ -5,9 +5,16 @@ use axum::{
     extract::connect_info::ConnectInfo,
     Extension,
 };
-use std::sync::Arc;
-use std::time::Duration;
-use tower_http::cors::{Any, CorsLayer};
+use hyper::{Body, Request};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+    time::Duration,
+};
+use tokio::signal;
+use tower_http::{
+    cors::{Any, CorsLayer},
+};
 use tracing::{debug, error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -21,11 +28,14 @@ mod telemetry;
 
 use crate::{
     config::{AppConfig, TelemetryConfig},
+    context::RequestContext,
+    handlers::{health_check, proxy_request},
     telemetry::{
-        exporters::prometheus::PrometheusExporter,
-        metrics::MetricsRegistry,
-        middleware::{self, metrics_middleware},
-        plugins::ConsolePlugin,
+        MetricsRegistry, 
+        metrics_middleware, 
+        ConsolePlugin,
+        PrometheusExporter,
+        plugins::elasticsearch::ElasticsearchPlugin,
     },
 };
 
@@ -84,6 +94,34 @@ async fn main() {
         metrics_registry
             .register_exporter(Box::new(ConsolePlugin::new()))
             .await;
+    }
+
+    if telemetry_config.elasticsearch_enabled {
+        debug!("Registering Elasticsearch exporter");
+        
+        let elasticsearch_url = std::env::var("ELASTICSEARCH_URL")
+            .unwrap_or_else(|_| "http://localhost:9200".to_string());
+            
+        let elasticsearch_username = std::env::var("ELASTICSEARCH_USERNAME").ok();
+        let elasticsearch_password = std::env::var("ELASTICSEARCH_PASSWORD").ok();
+        
+        let elasticsearch_index = std::env::var("ELASTICSEARCH_INDEX")
+            .unwrap_or_else(|_| "ai-gateway-metrics".to_string());
+        
+        match ElasticsearchPlugin::new(
+            elasticsearch_url, 
+            elasticsearch_username, 
+            elasticsearch_password, 
+            elasticsearch_index
+        ) {
+            Ok(plugin) => {
+                metrics_registry.register_exporter(Box::new(plugin)).await;
+                info!("Elasticsearch exporter registered successfully");
+            },
+            Err(e) => {
+                error!("Failed to initialize Elasticsearch exporter: {}", e);
+            }
+        }
     }
 
     // Create router with optimized settings

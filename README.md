@@ -11,6 +11,7 @@
 
 [Quick Start](#quick-start) • 
 [Documentation](docs/) • 
+[Monitoring](docs/elasticsearch-integration.md) • 
 [Docker](docs/deployment.md) • 
 [Contributing](docs/CONTRIBUTING.md)
 
@@ -30,6 +31,7 @@
 - 📡 **Real-time Streaming**: Optimized for minimal latency
 - 🛡️ **Production Ready**: Battle-tested in high-load environments
 - 🔍 **Health Checking**: Built-in monitoring
+- 📊 **Telemetry & Metrics**: Supports [Elasticsearch integration](docs/elasticsearch-integration.md) for advanced monitoring
 - 🌐 **CORS Support**: Configurable cross-origin resource sharing
 - 🛠️ **SDK Compatibility**: Works with any OpenAI-compatible SDK
 
