@@ -290,6 +290,27 @@ impl RequestMetrics {
                                 }
                             }
                         }
+                        
+                        // Convert 'seed' to string to avoid Elasticsearch long integer overflow
+                        if let Some(seed) = choice.get_mut("seed") {
+                            if seed.is_number() {
+                                let seed_str = seed.to_string();
+                                *seed = json!(seed_str);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Handle root-level choices array
+        if let Some(choices) = value.get_mut("choices").and_then(|c| c.as_array_mut()) {
+            for choice in choices {
+                // Convert 'seed' to string to avoid Elasticsearch long integer overflow
+                if let Some(seed) = choice.get_mut("seed") {
+                    if seed.is_number() {
+                        let seed_str = seed.to_string();
+                        *seed = json!(seed_str);
                     }
                 }
             }

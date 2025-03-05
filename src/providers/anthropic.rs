@@ -164,9 +164,22 @@ impl Provider for AnthropicProvider {
                 }
             }
             
+            // Extract the ID from the JSON response for later use
+            let json_id = json.get("id").and_then(|v| v.as_str()).map(String::from);
+            
             // Transform Anthropic API response to OpenAI format
             let transformed_response = transform_anthropic_to_openai_format(json);
             debug!("Transformed Anthropic response to OpenAI format");
+            
+            // Ensure x-request-id header is set in the response
+            if !parts.headers.contains_key("x-request-id") {
+                if let Some(id) = json_id {
+                    debug!("Setting x-request-id header from Anthropic response ID: {}", id);
+                    if let Ok(header_value) = HeaderValue::from_str(&id) {
+                        parts.headers.insert("x-request-id", header_value);
+                    }
+                }
+            }
             
             // Return the modified response
             return Ok(Response::from_parts(parts, Body::from(serde_json::to_vec(&transformed_response)?)));
@@ -394,7 +407,7 @@ fn transform_anthropic_to_openai_format(anthropic_response: Value) -> Value {
     };
     
     // Create OpenAI-compatible format
-    json!({
+    let mut transformed = json!({
         "id": anthropic_response.get("id").unwrap_or(&Value::Null),
         "object": "chat.completion",
         "created": chrono::Utc::now().timestamp(),
@@ -411,5 +424,22 @@ fn transform_anthropic_to_openai_format(anthropic_response: Value) -> Value {
         }],
         "usage": usage,
         "system_fingerprint": format!("anthropic-{}", anthropic_response.get("model").and_then(|m| m.as_str()).unwrap_or("claude"))
-    })
+    });
+    
+    // Handle the seed value - convert to string if present to avoid Elasticsearch long integer overflow
+    if let Some(seed) = anthropic_response.get("seed") {
+        if let Some(choices) = transformed.get_mut("choices").and_then(|c| c.as_array_mut()) {
+            for choice in choices {
+                if seed.is_number() {
+                    // Convert the numeric seed to a string to avoid Elasticsearch integer range issues
+                    choice["seed"] = json!(seed.to_string());
+                } else {
+                    // If it's already a string or other type, just preserve it
+                    choice["seed"] = seed.clone();
+                }
+            }
+        }
+    }
+    
+    transformed
 }

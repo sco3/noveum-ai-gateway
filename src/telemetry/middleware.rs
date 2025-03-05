@@ -379,8 +379,6 @@ async fn handle_streaming_response(
                 is_streaming: true,
                 ..Default::default()
             };
-
-            debug!("Recording streaming metrics: {:?}", metrics);
             metrics_registry.record_metrics(metrics).await;
         } else {
             debug!("No final metrics found in streaming response. Total text accumulated: {} bytes", accumulated_text.len());
