@@ -392,7 +392,73 @@ impl MetricsExtractor for GroqMetricsExtractor {
     fn try_extract_provider_specific_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
         debug!("Attempting to extract metrics from Groq streaming chunk");
         
-        // Split the chunk into lines and process each SSE line
+        // First try parsing the chunk directly as JSON
+        if let Ok(json) = serde_json::from_str::<Value>(chunk) {
+            // Check if this is the final chunk with usage data
+            if let Some(x_groq) = json.get("x_groq") {
+                debug!("Found x_groq field in direct JSON: {}", json);
+                if let Some(usage) = x_groq.get("usage") {
+                    // Extract token counts from the usage data
+                    let mut metrics = ProviderMetrics::default();
+                    
+                    metrics.input_tokens = usage.get("prompt_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+                    metrics.output_tokens = usage.get("completion_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+                    metrics.total_tokens = usage.get("total_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+                    
+                    // Capture provider latency from Groq's timing info if available
+                    if let Some(total_time) = usage.get("total_time").and_then(|v| v.as_f64()) {
+                        metrics.provider_latency = Duration::from_secs_f64(total_time);
+                    }
+                    
+                    // Get the model name
+                    if let Some(model) = json.get("model").and_then(|v| v.as_str()) {
+                        metrics.model = model.to_string();
+                    }
+                    
+                    // Calculate cost if we have total tokens and model
+                    if let Some(total_tokens) = metrics.total_tokens {
+                        metrics.cost = Some(calculate_groq_cost(&metrics.model, total_tokens));
+                        debug!("Calculated Groq cost: {:?} for model {} and {} tokens", 
+                            metrics.cost, metrics.model, total_tokens);
+                    }
+                    
+                    debug!("Extracted complete Groq metrics from streaming chunk: {:?}", metrics);
+                    return Some(metrics);
+                }
+            }
+            
+            // Check for final chunk with finish_reason: "stop"
+            let is_final_chunk = json.get("choices")
+                .and_then(|c| c.as_array())
+                .and_then(|choices| choices.first())
+                .and_then(|choice| choice.get("finish_reason"))
+                .and_then(|f| f.as_str())
+                .map(|reason| reason == "stop")
+                .unwrap_or(false);
+                
+            // Extract model information for any chunk
+            let model = json.get("model").and_then(|v| v.as_str()).unwrap_or("llama").to_string();
+            
+            // Check if this is a Groq response
+            let is_groq_response = 
+                model.contains("llama") || 
+                model.contains("gemma") || 
+                json.get("object").and_then(|o| o.as_str()).map(|obj| obj == "chat.completion.chunk").unwrap_or(false);
+                
+            if is_groq_response {
+                debug!("Groq streaming chunk detected for model: {}, is_final: {}", model, is_final_chunk);
+                
+                // Create metrics with available information
+                return Some(ProviderMetrics {
+                    model,
+                    provider_latency: Duration::from_millis(0),
+                    // Token counts and cost will be None until the final chunk with usage info
+                    ..Default::default()
+                });
+            }
+        }
+        
+        // Handle SSE format: split the chunk into lines and process each line
         for line in chunk.lines() {
             if !line.starts_with("data: ") {
                 continue;
@@ -404,35 +470,53 @@ impl MetricsExtractor for GroqMetricsExtractor {
             }
 
             if let Ok(json) = serde_json::from_str::<Value>(json_str) {
-                // Look for the final chunk that contains x_groq usage data
-                if json.get("x_groq").is_some() {
-                    debug!("Found Groq metrics in x_groq field: {}", json_str);
-                    return Some(self.extract_metrics(&json));
+                // Check if this is the final chunk with x_groq usage data
+                if let Some(x_groq) = json.get("x_groq") {
+                    debug!("Found x_groq field in SSE data: {}", json_str);
+                    if let Some(usage) = x_groq.get("usage") {
+                        // This is the final chunk with complete metrics
+                        let mut metrics = ProviderMetrics::default();
+                        
+                        metrics.input_tokens = usage.get("prompt_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+                        metrics.output_tokens = usage.get("completion_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+                        metrics.total_tokens = usage.get("total_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+                        
+                        // Capture provider latency if available
+                        if let Some(total_time) = usage.get("total_time").and_then(|v| v.as_f64()) {
+                            metrics.provider_latency = Duration::from_secs_f64(total_time);
+                        }
+                        
+                        // Get the model name
+                        if let Some(model) = json.get("model").and_then(|v| v.as_str()) {
+                            metrics.model = model.to_string();
+                        }
+                        
+                        // Calculate cost if we have total tokens and model
+                        if let Some(total_tokens) = metrics.total_tokens {
+                            metrics.cost = Some(calculate_groq_cost(&metrics.model, total_tokens));
+                        }
+                        
+                        debug!("Extracted complete Groq metrics from SSE streaming chunk: {:?}", metrics);
+                        return Some(metrics);
+                    }
                 }
-
+                
                 // Extract model information for partial metrics
                 let model = json.get("model").and_then(|v| v.as_str()).unwrap_or("llama").to_string();
                 
-                // Check for either Groq-specific model names or the object type
-                if model.contains("llama") || 
-                   model.contains("gemma") || 
-                   json.get("object").and_then(|o| o.as_str()).unwrap_or("") == "chat.completion.chunk" {
+                // Check if this is a Groq response
+                let is_groq_response = 
+                    model.contains("llama") || 
+                    model.contains("gemma") || 
+                    json.get("object").and_then(|o| o.as_str()).map(|obj| obj == "chat.completion.chunk").unwrap_or(false);
                     
-                    // Also check for finish_reason: "stop" as a better indicator of a final chunk
-                    let is_final_chunk = json.get("choices")
-                        .and_then(|c| c.as_array())
-                        .and_then(|choices| choices.first())
-                        .and_then(|choice| choice.get("finish_reason"))
-                        .and_then(|f| f.as_str())
-                        .is_some();
-                    
-                    debug!("Groq streaming chunk detected for model: {}, is_final: {}", model, is_final_chunk);
-                    
-                    // Create partial metrics with the model information
+                if is_groq_response {
+                    // Create partial metrics with model information
+                    debug!("Groq SSE streaming chunk detected for model: {}", model);
                     return Some(ProviderMetrics {
                         model,
                         provider_latency: Duration::from_millis(0),
-                        // We don't have token counts yet
+                        // Token counts and cost will be filled in the final chunk
                         ..Default::default()
                     });
                 }
@@ -446,10 +530,38 @@ impl MetricsExtractor for GroqMetricsExtractor {
 
 // Helper function for Groq-specific cost calculation
 fn calculate_groq_cost(model: &str, total_tokens: u32) -> f64 {
+    let tokens = total_tokens as f64;
+    
     match model {
-        m if m.contains("mixtral") => (total_tokens as f64) * 0.0002,
-        m if m.contains("llama") => (total_tokens as f64) * 0.0001,
-        _ => 0.0,
+        // Llama 3 models
+        m if m.contains("llama-3") && m.contains("70b") => tokens * 0.0009,
+        m if m.contains("llama-3") && m.contains("8b") => tokens * 0.0001,
+        m if m.contains("llama-3.1") && m.contains("70b") => tokens * 0.0009,
+        m if m.contains("llama-3.1") && m.contains("8b") => tokens * 0.0001,
+        
+        // Legacy Llama 2 models
+        m if m.contains("llama-2") && m.contains("70b") => tokens * 0.0007,
+        m if m.contains("llama-2") && m.contains("13b") => tokens * 0.0002,
+        m if m.contains("llama-2") && m.contains("7b") => tokens * 0.0001,
+        
+        // Mixtral models
+        m if m.contains("mixtral-8x7b") => tokens * 0.0002,
+        m if m.contains("mixtral-8x22b") => tokens * 0.0006,
+        
+        // Gemma models
+        m if m.contains("gemma") && m.contains("7b") => tokens * 0.0001,
+        m if m.contains("gemma") && m.contains("27b") => tokens * 0.0004,
+        
+        // Generic fallbacks by model family
+        m if m.contains("mixtral") => tokens * 0.0002,
+        m if m.contains("llama") => tokens * 0.0001,
+        m if m.contains("gemma") => tokens * 0.0001,
+        
+        // Default case - apply minimal cost to avoid zero cost which might mislead
+        _ => {
+            debug!("Unknown Groq model for cost calculation: {}", model);
+            tokens * 0.0001
+        },
     }
 }
 
