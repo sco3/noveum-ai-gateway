@@ -163,6 +163,7 @@ async fn handle_regular_response(
 
     // Extract provider request ID from response headers
     let provider_request_id = parts.headers.get("x-request-id")
+        .or_else(|| parts.headers.get("request-id"))  // Also check for Anthropic's request-id header
         .and_then(|v| v.to_str().ok())
         .map(String::from);
     
@@ -233,6 +234,7 @@ async fn handle_streaming_response(
 
     // Extract provider request ID from response headers
     let provider_request_id = parts.headers.get("x-request-id")
+        .or_else(|| parts.headers.get("request-id"))  // Also check for Anthropic's request-id header
         .and_then(|v| v.to_str().ok())
         .map(String::from);
     

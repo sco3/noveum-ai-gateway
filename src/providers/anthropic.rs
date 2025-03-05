@@ -132,6 +132,15 @@ impl MetricsExtractor for AnthropicMetricsExtractor {
         
         // Try to parse the chunk as JSON
         if let Ok(json) = serde_json::from_str::<Value>(chunk) {
+            // First, try to extract the request ID from the top level, which might be present in some responses
+            let mut request_id = None;
+            
+            // Check for top-level ID
+            if let Some(id) = json.get("id").and_then(|v| v.as_str()) {
+                debug!("Found top-level Anthropic ID in streaming chunk: {}", id);
+                request_id = Some(id.to_string());
+            }
+            
             // Check for message_start event which contains token information
             if let Some(event_type) = json.get("type").and_then(|t| t.as_str()) {
                 match event_type {
@@ -168,6 +177,9 @@ impl MetricsExtractor for AnthropicMetricsExtractor {
                             if let Some(id) = message.get("id").and_then(|v| v.as_str()) {
                                 debug!("Found Anthropic message ID in streaming chunk: {}", id);
                                 metrics.request_id = Some(id.to_string());
+                            } else if request_id.is_some() {
+                                // Use the top-level ID if available and message ID not found
+                                metrics.request_id = request_id;
                             }
                             
                             debug!("Extracted Anthropic metrics from message_start event: {:?}", metrics);
