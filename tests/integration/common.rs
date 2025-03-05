@@ -165,13 +165,9 @@ pub async fn run_non_streaming_test(config: &ProviderTestConfig) {
     
     // Print request ID for debugging
     println!("Request ID: {}", request_id);
-    println!("Request Headers: {:#?}", headers);
     
     // Create request body
     let request_body = create_test_request_body(config, false);
-    
-    // Print full request for debugging
-    println!("Full request body: {:#?}", request_body);
     
     // Send request to the gateway
     let client = Client::new();
@@ -201,7 +197,7 @@ pub async fn run_non_streaming_test(config: &ProviderTestConfig) {
     let response_body = response.json::<Value>().await.expect("Failed to parse response as JSON");
     
     // Print response for debugging
-    println!("Response: {:#?}", response_body);
+    // println!("Response: {:#?}", response_body);
     
     // Validate response structure - still keep basic validation for immediate feedback
     assert!(response_body.get("choices").is_some(), "Response missing 'choices' field");
@@ -224,7 +220,6 @@ pub async fn run_non_streaming_test(config: &ProviderTestConfig) {
     
     // Load environment variables (to make it clear in the logs)
     dotenv::from_filename(".env.test").ok();
-    println!("Loaded environment from .env.test");
     
     // Search ElasticSearch for the request using gateway request ID
     let es_response = search_elasticsearch(gateway_request_id).await.expect("Failed to search ElasticSearch");
@@ -270,13 +265,9 @@ pub async fn run_streaming_test(config: &ProviderTestConfig) {
     
     // Print request ID for debugging
     println!("Request ID: {}", request_id);
-    println!("Request Headers: {:#?}", headers);
     
     // Create request body with streaming enabled
     let request_body = create_test_request_body(config, true);
-    
-    // Print full request for debugging
-    println!("Full request body: {:#?}", request_body);
     
     // Send request to the gateway
     let client = Client::new();
@@ -296,7 +287,7 @@ pub async fn run_streaming_test(config: &ProviderTestConfig) {
     // Print response status and headers
     println!("Response status: {}", response.status());
     let response_headers = response.headers().clone();
-    println!("Response headers: {:#?}", response.headers());
+    // println!("Response headers: {:#?}", response.headers());
     
     // Extract gateway request ID from headers
     let gateway_request_id = response_headers.get("x-request-id")
@@ -348,17 +339,10 @@ pub async fn run_streaming_test(config: &ProviderTestConfig) {
     // Validate we received some streaming chunks
     assert!(!stream_data.is_empty(), "No streaming data chunks received");
     
-    // Print first and last chunks for debugging
-    println!("First chunk: {:#?}", stream_data.first().unwrap());
-    println!("Last chunk: {:#?}", stream_data.last().unwrap());
-    
-    // Wait for data to be indexed in ElasticSearch
-    println!("Waiting for data to be indexed in ElasticSearch...");
     sleep(Duration::from_secs(3)).await;
     
     // Load environment variables (to make it clear in the logs)
     dotenv::from_filename(".env.test").ok();
-    println!("Loaded environment from .env.test");
     
     // Search ElasticSearch for the request using gateway request ID
     let es_response = search_elasticsearch(gateway_request_id).await.expect("Failed to search ElasticSearch");
@@ -531,7 +515,6 @@ pub async fn validate_with_llm(
         response_body,
         es_response
     );
-    println!("Prompt: {}", prompt);
     // Create OpenAI request
     let openai_request = serde_json::json!({
         "model": "gpt-4o",
