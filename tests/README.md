@@ -125,17 +125,35 @@ cargo test --test run_integration_tests -- --nocapture
 
 The `--nocapture` flag ensures that test output (e.g., request/response details) is printed to the console, which is helpful for debugging.
 
-### Running Specific Provider Tests
+### Running Integration Tests
 
-To run tests for a specific provider:
+1. Set up your test environment:
+   ```bash
+   # Copy the sample test environment file
+   cp tests/.env.test.example .env.test
+   
+   # Edit the file to add your API keys for the providers you want to test
+   nano .env.test
+   ```
 
-```bash
-# Run only the OpenAI tests
-cargo test --test run_integration_tests openai -- --nocapture
+2. Start the gateway with ElasticSearch enabled:
+   ```bash
+   ENABLE_ELASTICSEARCH=true cargo run
+   ```
 
-# Run only the Anthropic tests
-cargo test --test run_integration_tests anthropic -- --nocapture
-```
+3. Run the integration tests:
+   ```bash
+   # Run all tests
+   cargo test --test run_integration_tests -- --nocapture
+   
+   # Run tests for specific providers
+   cargo test --test run_integration_tests openai -- --nocapture
+   cargo test --test run_integration_tests anthropic -- --nocapture
+   cargo test --test run_integration_tests groq -- --nocapture
+   cargo test --test run_integration_tests fireworks -- --nocapture
+   cargo test --test run_integration_tests together -- --nocapture
+   cargo test --test run_integration_tests bedrock -- --nocapture
+   ```
 
 ## Debugging Test Failures
 
