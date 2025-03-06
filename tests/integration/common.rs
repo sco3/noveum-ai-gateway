@@ -581,7 +581,13 @@ pub async fn validate_with_llm(
     // Send request to OpenAI
     let client = Client::new();
     let openai_response = client
-        .post("https://api.openai.com/v1/chat/completions")
+        .post("https://gateway.noveum.ai/v1/chat/completions")
+        // .post("https://api.openai.com/v1/chat/completions")
+        .header("provider", "openai")
+        .header("x-project-id", "noveum-integration-test")
+        .header("x-organisation-id", "noveumtest")
+        .header("x-experiment-id", "eval_job_1")
+        .header("x-user-id", "shashank")
         .header("Content-Type", "application/json")
         .header("Authorization", format!("Bearer {}", openai_api_key))
         .json(&openai_request)

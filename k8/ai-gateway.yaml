@@ -51,7 +51,7 @@ metadata:
   labels:
     app: noveum-ai-gateway
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: noveum-ai-gateway
@@ -71,6 +71,28 @@ spec:
           env:
             - name: RUST_LOG
               value: "info"
+            - name: ENABLE_ELASTICSEARCH
+              value: "true"
+            - name: ELASTICSEARCH_URL
+              valueFrom:
+                secretKeyRef:
+                  name: noveum-elasticsearch-credentials
+                  key: elasticsearch-url
+            - name: ELASTICSEARCH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: noveum-elasticsearch-credentials
+                  key: elasticsearch-username
+            - name: ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: noveum-elasticsearch-credentials
+                  key: elasticsearch-password
+            - name: ELASTICSEARCH_INDEX
+              valueFrom:
+                secretKeyRef:
+                  name: noveum-elasticsearch-credentials
+                  key: elasticsearch-index
           ports:
             - containerPort: 3000
               name: http
