@@ -297,6 +297,16 @@ impl Provider for BedrockProvider {
     }
 
     async fn process_response(&self, response: Response<Body>) -> Result<Response<Body>, AppError> {
+        // Extract AWS request ID if present
+        let aws_request_id = response.headers()
+            .get("x-amzn-RequestId")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from);
+            
+        if let Some(request_id) = &aws_request_id {
+            debug!("Extracted AWS Request ID: {}", request_id);
+        }
+
         if response
             .headers()
             .get(http::header::CONTENT_TYPE)
@@ -324,7 +334,7 @@ impl Provider for BedrockProvider {
                 });
 
             // Build response with transformed stream and all necessary headers
-            Ok(Response::builder()
+            let mut builder = Response::builder()
                 .status(StatusCode::OK)
                 // SSE specific headers
                 .header("content-type", "text/event-stream")
@@ -338,7 +348,14 @@ impl Provider for BedrockProvider {
                 .header("access-control-expose-headers", "*")
                 // SSE specific headers for better client compatibility
                 .header("x-accel-buffering", "no")
-                .header("keep-alive", "timeout=600")
+                .header("keep-alive", "timeout=600");
+                
+            // Add the request ID header if we have one
+            if let Some(id) = aws_request_id {
+                builder = builder.header("x-request-id", id);
+            }
+
+            Ok(builder
                 .body(Body::from_stream(stream))
                 .unwrap())
         } else {
@@ -356,6 +373,14 @@ impl Provider for BedrockProvider {
                 "access-control-expose-headers",
                 HeaderValue::from_static("*"),
             );
+            
+            // Add the request ID header if we have one
+            if let Some(id) = aws_request_id {
+                if let Ok(header_value) = HeaderValue::from_str(&id) {
+                    headers.insert("x-request-id", header_value);
+                }
+            }
+            
             Ok(response)
         }
     }
@@ -382,6 +407,15 @@ impl MetricsExtractor for BedrockMetricsExtractor {
             debug!("Found Bedrock model: {}", model);
             metrics.model = model.to_string();
         }
+        
+        // Extract request ID if present in the response body
+        if let Some(request_id) = response_body.get("id").and_then(|v| v.as_str()) {
+            debug!("Found Bedrock request ID in response body: {}", request_id);
+            metrics.request_id = Some(request_id.to_string());
+        } else if let Some(request_id) = response_body.get("requestId").and_then(|v| v.as_str()) {
+            debug!("Found Bedrock requestId in response body: {}", request_id);
+            metrics.request_id = Some(request_id.to_string());
+        }
 
         if let (Some(total_tokens), Some(model)) = (metrics.total_tokens, response_body.get("model")) {
             metrics.cost = Some(calculate_bedrock_cost(model.as_str().unwrap_or(""), total_tokens));
@@ -395,13 +429,40 @@ impl MetricsExtractor for BedrockMetricsExtractor {
     
     // Override with Bedrock-specific streaming metrics extraction
     fn try_extract_provider_specific_streaming_metrics(&self, chunk: &str) -> Option<ProviderMetrics> {
-        debug!("Attempting to extract metrics from Bedrock streaming chunk: {}", chunk);
+        debug!("Attempting Bedrock-specific streaming metrics extraction for chunk");
+        
+        // Try to parse the chunk as JSON
         if let Ok(json) = serde_json::from_str::<Value>(chunk) {
+            // Check for indicators that this is a final message with metrics
             if json.get("usage").is_some() {
-                debug!("Found usage in Bedrock streaming chunk");
+                debug!("Found usage in Bedrock streaming chunk, extracting complete metrics");
                 return Some(self.extract_metrics(&json));
             }
+            
+            // For ongoing chunks, extract what we can
+            let mut partial_metrics = ProviderMetrics::default();
+            
+            // Try to extract model information if available
+            if let Some(model) = json.get("model").and_then(|m| m.as_str()) {
+                partial_metrics.model = model.to_string();
+            }
+            
+            // Try to extract request ID from various possible locations
+            if let Some(request_id) = json.get("id").and_then(|v| v.as_str()) {
+                debug!("Found request ID in Bedrock streaming chunk: {}", request_id);
+                partial_metrics.request_id = Some(request_id.to_string());
+            } else if let Some(request_id) = json.get("requestId").and_then(|v| v.as_str()) {
+                debug!("Found requestId in Bedrock streaming chunk: {}", request_id);
+                partial_metrics.request_id = Some(request_id.to_string());
+            }
+            
+            // Return partial metrics if we found anything useful
+            if !partial_metrics.model.is_empty() || partial_metrics.request_id.is_some() {
+                debug!("Returning partial Bedrock metrics from streaming chunk");
+                return Some(partial_metrics);
+            }
         }
+        
         None
     }
 }
