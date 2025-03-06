@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.7] - 2024-11-13
 ### Added
-- Managed deployment offering with testing gateway at gate.noveum.ai
+- Managed deployment offering with testing gateway at gateway.noveum.ai
 - Thread-based performance optimizations for improved request handling
 - Documentation for testing deployment environment
 ### Enhanced

@@ -16,15 +16,15 @@ COPY Cargo.toml Cargo.lock ./
 # Create a dummy main.rs to build dependencies
 RUN mkdir src && \
     echo "fn main() {}" > src/main.rs && \
-    cargo build --release --target x86_64-unknown-linux-gnu && \
+    cargo build --release && \
     rm -rf src
 
 # Now copy the real source code
 COPY src ./src
 
-# Build the application
-RUN RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-gnu && \
-    strip target/x86_64-unknown-linux-gnu/release/noveum-ai-gateway
+# Build the application (removed static linking flag)
+RUN cargo build --release && \
+    strip target/release/noveum-ai-gateway
 
 # Runtime stage
 FROM --platform=linux/amd64 debian:bookworm-slim
@@ -34,12 +34,14 @@ LABEL org.opencontainers.image.source="https://github.com/noveum-ai/ai-gateway"
 LABEL org.opencontainers.image.description="Noveum AI Gateway"
 LABEL org.opencontainers.image.version="latest"
 
-# Install runtime dependencies
+# Install runtime dependencies including ca-certificates for HTTPS connections
 RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from builder
-COPY --from=builder /usr/src/app/target/x86_64-unknown-linux-gnu/release/noveum-ai-gateway /usr/local/bin/
+COPY --from=builder /usr/src/app/target/release/noveum-ai-gateway /usr/local/bin/
 
 # Set the startup command
 CMD ["noveum-ai-gateway"] 
