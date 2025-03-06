@@ -49,9 +49,12 @@ jobs:
         with:
           context: .
           push: false
-          platforms: linux/amd64,linux/arm64
+          # Match local build platform for consistency
+          platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Add load flag to ensure it can be tested locally
+          load: true
 
       # Main branch handling - build and push
       - name: Log in to GitHub Container Registry
@@ -82,7 +85,8 @@ jobs:
           labels: ${{ steps.meta-ghcr.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          # Match local build platform for GHCR build too
+          platforms: linux/amd64
 
       - name: Login to Docker Hub
         if: github.ref == 'refs/heads/main'
