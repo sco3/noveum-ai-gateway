@@ -36,7 +36,6 @@ LABEL org.opencontainers.image.version="latest"
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from builder
