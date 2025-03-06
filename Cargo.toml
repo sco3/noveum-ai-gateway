@@ -2,7 +2,7 @@
 name = "noveum-ai-gateway"
 version = "1.0.0"
 edition = "2021"
-description = "A high-performance AI Gateway proxy for routing requests to various AI providers, offering seamless integration and management of multiple AI services"
+description = "A high-performance AI Gateway proxy for routing requests to various AI providers, offering seamless integration and management of multiple AI providers."
 authors = ["MagicAPI Team <team@noveum.ai>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://noveum.ai"
