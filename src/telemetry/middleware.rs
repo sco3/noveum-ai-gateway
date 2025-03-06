@@ -13,9 +13,13 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, error};
 use axum::body::to_bytes;
-use hyper::body::HttpBody;
 use hyper::Error;
 use serde_json::Value;
+use http;
+
+// Constants for safeguards
+const CHANNEL_SIZE: usize = 1000; // Increased buffer for streaming response
+const MAX_ACCUMULATED_TEXT: usize = 5 * 1024 * 1024; // 5MB limit
 
 pub async fn metrics_middleware(
     State(registry): State<Arc<MetricsRegistry>>,
@@ -87,8 +91,17 @@ pub async fn metrics_middleware(
         .unwrap();
     *new_req.headers_mut() = original_headers;
 
-    // Process the response
-    let response = next.run(new_req).await;
+    // Process the response with a timeout
+    let response = tokio::time::timeout(
+        Duration::from_secs(30),
+        next.run(new_req)
+    ).await.unwrap_or_else(|_| {
+        debug!("Request timed out after 30 seconds");
+        Response::builder()
+            .status(http::StatusCode::GATEWAY_TIMEOUT)
+            .body(Body::from("Request timed out after 30 seconds"))
+            .unwrap()
+    });
 
     let is_streaming = response
         .headers()
@@ -230,7 +243,7 @@ async fn handle_streaming_response(
     debug!("Time to first byte for streaming response (TTFB): {:?}", ttfb);
 
     let (parts, body) = response.into_parts();
-    let (tx, rx) = mpsc::channel::<Result<Bytes, Error>>(100);
+    let (tx, rx) = mpsc::channel::<Result<Bytes, Error>>(CHANNEL_SIZE);
 
     // Extract provider request ID from response headers
     let provider_request_id = parts.headers.get("x-request-id")
@@ -243,7 +256,7 @@ async fn handle_streaming_response(
     }
 
     let metrics_registry = registry.clone();
-    let mut accumulated_text = String::new();
+    let mut accumulated_text = String::with_capacity(MAX_ACCUMULATED_TEXT);
 
     // Process the stream
     tokio::spawn(async move {
@@ -260,6 +273,10 @@ async fn handle_streaming_response(
                 debug!("Streaming response chunk size: {} bytes", bytes.len());
 
                 if let Ok(chunk_str) = String::from_utf8(bytes.to_vec()) {
+                    if accumulated_text.len() + chunk_str.len() > MAX_ACCUMULATED_TEXT {
+                        error!("Accumulated text exceeded maximum size of {} bytes", MAX_ACCUMULATED_TEXT);
+                        break;
+                    }
                     accumulated_text.push_str(&chunk_str);
                     
                     // Try to parse the chunk as JSON and store it
@@ -386,10 +403,4 @@ async fn handle_streaming_response(
     });
 
     Response::from_parts(parts, Body::from_stream(ReceiverStream::new(rx)))
-}
-
-async fn measure_body_size(body: Body) -> (usize, Body) {
-    let bytes = to_bytes(body, usize::MAX).await.unwrap_or_default();
-    let size = bytes.len();
-    (size, Body::from(bytes))
 }

@@ -34,11 +34,29 @@ impl MetricsRegistry {
             debug!("Request Metrics: {:#?}", metrics);
         }
 
-        let exporters = self.exporters.read().await;
-        for exporter in exporters.iter() {
-            if let Err(e) = exporter.export_metrics(metrics.clone()).await {
-                error!("Failed to export metrics to {}: {}", exporter.name(), e);
-            }
+        // First, get all exporter names to process
+        let exporter_names = {
+            let exporters = self.exporters.read().await;
+            exporters.iter().map(|e| e.name().to_string()).collect::<Vec<_>>()
+        };
+
+        // Process each exporter by name, getting a fresh lock for each one
+        for name in exporter_names {
+            let metrics_clone = metrics.clone();
+            let self_clone = self.exporters.clone();
+            
+            // Process each exporter in its own task to avoid holding locks
+            tokio::spawn(async move {
+                // Get a fresh lock on the exporters
+                let exporters = self_clone.read().await;
+                
+                // Find the exporter with this name, if it still exists
+                if let Some(exporter) = exporters.iter().find(|e| e.name() == name) {
+                    if let Err(e) = exporter.export_metrics(metrics_clone).await {
+                        error!("Failed to export metrics to {}: {}", name, e);
+                    }
+                }
+            });
         }
     }
 } 
