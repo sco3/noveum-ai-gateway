@@ -186,6 +186,7 @@ pub trait MetricsExtractor: Send + Sync {
 pub fn get_metrics_extractor(provider: &str) -> Box<dyn MetricsExtractor> {
     use crate::providers::anthropic::AnthropicMetricsExtractor;
     use crate::providers::bedrock::BedrockMetricsExtractor;
+    use crate::providers::fireworks::FireworksMetricsExtractor;
     use crate::providers::groq::GroqMetricsExtractor;
     use crate::providers::openai::OpenAIMetricsExtractor;
     
@@ -193,7 +194,7 @@ pub fn get_metrics_extractor(provider: &str) -> Box<dyn MetricsExtractor> {
         "anthropic" => Box::new(AnthropicMetricsExtractor),
         "bedrock" => Box::new(BedrockMetricsExtractor),
         "groq" => Box::new(GroqMetricsExtractor),
-        "fireworks" => Box::new(OpenAIMetricsExtractor), // Fireworks uses OpenAI-compatible format
+        "fireworks" => Box::new(FireworksMetricsExtractor), // Now using Fireworks-specific extractor
         "together" => Box::new(OpenAIMetricsExtractor),  // Together uses OpenAI-compatible format
         _ => Box::new(OpenAIMetricsExtractor),           // Default to OpenAI format
     }

@@ -67,6 +67,21 @@ For running tests, creating a `.env.test` file is recommended to keep your test 
 
 > **Note**: You can place the `.env.test` file either in the project root directory or in the `tests` directory. The tests will check both locations, prioritizing `.env.test` over the standard `.env` file.
 
+## Provider-Specific Test Information
+
+### AWS Bedrock
+
+The AWS Bedrock integration test uses the Claude 3 Sonnet model (`anthropic.claude-3-sonnet-20240229-v1:0`) by default. Unlike other providers that use API keys, Bedrock uses AWS credentials for authentication:
+
+- **AWS_ACCESS_KEY_ID**: Your AWS access key with Bedrock permissions
+- **AWS_SECRET_ACCESS_KEY**: Your AWS secret key
+- **AWS_REGION**: The AWS region where Bedrock is available (e.g., us-east-1)
+
+The test validates that:
+1. Request IDs are properly extracted from the AWS Bedrock response headers
+2. Streaming and non-streaming modes work correctly
+3. Token usage and metrics are properly captured in ElasticSearch
+
 ## Running the Tests
 
 ### Start the Gateway

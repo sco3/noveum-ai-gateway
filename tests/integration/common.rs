@@ -6,6 +6,7 @@ use tokio::time::sleep;
 use dotenv::from_filename;
 use uuid::Uuid;
 use futures_util::StreamExt;
+use reqwest::StatusCode;
 
 /// Configuration for a provider test
 pub struct ProviderTestConfig {
@@ -108,7 +109,26 @@ pub async fn search_elasticsearch(gateway_request_id: &str) -> Result<Value, req
 /// Set up request headers for a provider test
 pub fn setup_test_headers(provider: &str, api_key: &str, request_id: &str) -> HeaderMap {
     let mut headers = HeaderMap::new();
-    headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {}", api_key)).unwrap());
+    
+    // Different header setup based on provider
+    match provider {
+        "bedrock" => {
+            // For Bedrock, we need AWS credentials
+            let aws_access_key = env::var("AWS_ACCESS_KEY_ID").expect("AWS_ACCESS_KEY_ID must be set");
+            let aws_secret_key = env::var("AWS_SECRET_ACCESS_KEY").expect("AWS_SECRET_ACCESS_KEY must be set");
+            let aws_region = env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".to_string());
+            
+            headers.insert("x-aws-access-key-id", HeaderValue::from_str(&aws_access_key).unwrap());
+            headers.insert("x-aws-secret-access-key", HeaderValue::from_str(&aws_secret_key).unwrap());
+            headers.insert("x-aws-region", HeaderValue::from_str(&aws_region).unwrap());
+        },
+        _ => {
+            // For other providers, use Bearer token auth
+            headers.insert("Authorization", HeaderValue::from_str(&format!("Bearer {}", api_key)).unwrap());
+        }
+    }
+    
+    // Common headers for all providers
     headers.insert("Content-Type", HeaderValue::from_str("application/json").unwrap());
     headers.insert("x-provider", HeaderValue::from_str(provider).unwrap());
     headers.insert("x-organisation-id", HeaderValue::from_str("TEST_ORG").unwrap());
@@ -138,6 +158,17 @@ pub fn create_test_request_body(config: &ProviderTestConfig, stream: bool) -> Va
 fn get_api_key(env_var_name: &str) -> String {
     // Ensure environment variables are loaded
     init_test_env();
+    
+    // For Bedrock, we need to ensure all required AWS credentials are available
+    if env_var_name == "AWS_ACCESS_KEY_ID" {
+        // Make sure the other AWS credentials are set as well
+        if env::var("AWS_SECRET_ACCESS_KEY").is_err() {
+            panic!("AWS_SECRET_ACCESS_KEY must be set for Bedrock tests");
+        }
+        if env::var("AWS_REGION").is_err() {
+            panic!("AWS_REGION must be set for Bedrock tests");
+        }
+    }
     
     match env::var(env_var_name) {
         Ok(key) if !key.is_empty() => key,
@@ -179,12 +210,22 @@ pub async fn run_non_streaming_test(config: &ProviderTestConfig) {
         .await
         .expect("Failed to send request");
     
+    // Print the status code
+    println!("Response status: {}", response.status());
+    
+    // If we got a 403 Forbidden error, print the response body to debug
+    if response.status() == StatusCode::FORBIDDEN {
+        let error_body = response.text().await.expect("Failed to read error response body");
+        println!("Error response from gateway: {}", error_body);
+        panic!("Request failed with status: 403 Forbidden - Make sure your AWS credentials have the correct permissions for AWS Bedrock");
+    }
+    
     // Ensure the request was successful
     assert!(response.status().is_success(), 
             "Request failed with status: {} - Make sure the AI Gateway is running with ENABLE_ELASTICSEARCH=true", 
             response.status());
     
-    // Get the response headers
+    // Extract gateway request ID from headers
     let response_headers = response.headers().clone();
     let gateway_request_id = response_headers.get("x-request-id")
         .expect("x-request-id header not found in response")
@@ -279,17 +320,23 @@ pub async fn run_streaming_test(config: &ProviderTestConfig) {
         .await
         .expect("Failed to send request");
     
+    // Print the status code
+    println!("Response status: {}", response.status());
+    
+    // If we got a 403 Forbidden error, print the response body to debug
+    if response.status() == StatusCode::FORBIDDEN {
+        let error_body = response.text().await.expect("Failed to read error response body");
+        println!("Error response from gateway: {}", error_body);
+        panic!("Request failed with status: 403 Forbidden - Make sure your AWS credentials have the correct permissions for AWS Bedrock");
+    }
+    
     // Ensure the request was successful
     assert!(response.status().is_success(), 
             "Request failed with status: {} - Make sure the AI Gateway is running with ENABLE_ELASTICSEARCH=true", 
             response.status());
     
-    // Print response status and headers
-    println!("Response status: {}", response.status());
-    let response_headers = response.headers().clone();
-    // println!("Response headers: {:#?}", response.headers());
-    
     // Extract gateway request ID from headers
+    let response_headers = response.headers().clone();
     let gateway_request_id = response_headers.get("x-request-id")
         .expect("x-request-id header not found in response")
         .to_str()
@@ -478,6 +525,7 @@ pub async fn validate_with_llm(
     let prompt = format!(
         "As a LLM judge and validator your task is to make sure that all metrics are getting accurately logged for the given request ->\n\n\n\
         This is our request and other logs ->\n\
+        Also make sure that the response from provider is OpenAI compatible always. Give error if the response format is not OpenAI compatible.
         Running non-streaming test for provider: {}\n\
         Request ID: {}\n\
         Request Headers: {}\n\
@@ -503,7 +551,7 @@ pub async fn validate_with_llm(
         and other metrics. So just tell me in JSON response did the test pass or fail?\n\
         IMPORTANT: A mismatch in token counts is NOT an error. be smart and match prompt_tokens with input, completion with output and total with total tokens
         and other metrics. So just tell me in JSON response did the test pass or fail?
-        Which field failed, de descriptive in error message with reason?
+        Which field failed, de descriptive in error message with failed field and reason?
         IMPORTANT: Your response must be a valid JSON object in EXACTLY this format:\n\
         {{\n  \"test_result\": \"pass\",\n  \"failed_fields\": []\n}}\n\
         where test_result is either \"pass\" or \"fail\", and failed_fields is an array of field names that failed validation.\n\

@@ -655,6 +655,7 @@ Noveum Gateway includes comprehensive integration tests for all supported provid
    cargo test --test run_integration_tests groq -- --nocapture
    cargo test --test run_integration_tests fireworks -- --nocapture
    cargo test --test run_integration_tests together -- --nocapture
+   cargo test --test run_integration_tests bedrock -- --nocapture
    ```
 
 ### Test Environment Configuration

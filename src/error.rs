@@ -61,6 +61,15 @@ pub enum AppError {
 
     #[error("UTF-8 conversion error: {0}")]
     Utf8Error(#[from] std::string::FromUtf8Error),
+
+    #[error("HTTP error: {0}")]
+    HttpError(String),
+    
+    #[error("JSON parse error: {0}")]
+    JsonParseError(String),
+    
+    #[error("JSON serialize error: {0}")]
+    JsonSerializeError(String),
 }
 
 impl IntoResponse for AppError {
@@ -125,6 +134,18 @@ impl IntoResponse for AppError {
             AppError::Utf8Error(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("UTF-8 conversion error: {}", e),
+            ),
+            AppError::HttpError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("HTTP error: {}", e),
+            ),
+            AppError::JsonParseError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("JSON parse error: {}", e),
+            ),
+            AppError::JsonSerializeError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("JSON serialize error: {}", e),
             ),
         };
 
