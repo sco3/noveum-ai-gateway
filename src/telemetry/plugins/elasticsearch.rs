@@ -79,8 +79,34 @@ impl ElasticsearchPlugin {
                             }
                         },
                         Err(e) => {
-                            warn!("Failed to send metrics to Elasticsearch: {}", e);
-                            Err(TraceError::from(format!("Failed to send metrics: {}", e)))
+                            let error_type = std::any::type_name_of_val(&e);
+                            let is_connection_error = e.to_string().contains("connection") || 
+                                                     e.to_string().contains("network") || 
+                                                     e.to_string().contains("connect");
+                            
+                            let is_timeout = e.to_string().contains("timeout") || 
+                                            e.to_string().contains("timed out");
+                            
+                            let error_category = if is_connection_error {
+                                "CONNECTION"
+                            } else if is_timeout {
+                                "TIMEOUT"
+                            } else {
+                                "REQUEST"
+                            };
+                            
+                            warn!(
+                                error_type = error_type,
+                                error_category = error_category,
+                                error_message = %e,
+                                "Failed to send metrics to Elasticsearch: [{}] {} - {}",
+                                error_category, error_type, e
+                            );
+                            
+                            Err(TraceError::from(format!(
+                                "Failed to send metrics [{}]: {} - {}", 
+                                error_category, error_type, e
+                            )))
                         }
                     }
                 },
@@ -94,8 +120,46 @@ impl ElasticsearchPlugin {
         match result {
             Ok(_) => Ok(()),
             Err(e) => {
-                error!("Failed to send metrics after retries: {}", e);
-                Err(TraceError::from(format!("Failed to send metrics after retries: {}", e)))
+                let error_str = e.to_string();
+                let retry_exhausted = error_str.contains("retry") || error_str.contains("attempt");
+                
+                // Extract the original error if possible
+                let original_error = if let Some(start) = error_str.find(':') {
+                    error_str[start+1..].trim()
+                } else {
+                    &error_str
+                };
+                
+                // Determine if this is a connection, authentication, or other issue
+                let error_category = if original_error.contains("connection") || 
+                                       original_error.contains("network") || 
+                                       original_error.contains("connect") {
+                    "CONNECTION"
+                } else if original_error.contains("unauthorized") || 
+                          original_error.contains("forbidden") || 
+                          original_error.contains("authentication") {
+                    "AUTHENTICATION"
+                } else if original_error.contains("timeout") || 
+                          original_error.contains("timed out") {
+                    "TIMEOUT"
+                } else if original_error.contains("index") {
+                    "INDEX"
+                } else {
+                    "UNKNOWN"
+                };
+                
+                error!(
+                    error_category = error_category,
+                    retries_exhausted = retry_exhausted,
+                    original_error = original_error,
+                    "Failed to send metrics to Elasticsearch after retries: [{}] {}",
+                    error_category, original_error
+                );
+                
+                Err(TraceError::from(format!(
+                    "Failed to send metrics after retries [{}]: {}", 
+                    error_category, original_error
+                )))
             }
         }
     }
@@ -107,10 +171,51 @@ impl TelemetryPlugin for ElasticsearchPlugin {
         // Convert metrics to OpenTelemetry format
         let document = metrics.to_otel_log();
         
-        if let Err(e) = self.send_metrics(document).await {
-            error!("Failed to export metrics: {}", e);
+        // Extract some key metrics for logging context
+        let provider = document["attributes"]["provider"].as_str().unwrap_or("unknown");
+        let model = document["attributes"]["model"].as_str().unwrap_or("unknown");
+        let request_id = document["attributes"]["id"].as_str().unwrap_or("unknown");
+        
+        debug!(
+            provider = provider,
+            model = model,
+            request_id = request_id,
+            "Exporting metrics to Elasticsearch for request"
+        );
+        
+        if let Err(e) = self.send_metrics(document.clone()).await {
+            let error_message = e.to_string();
+            let error_category = if error_message.contains("CONNECTION") {
+                "CONNECTION"
+            } else if error_message.contains("AUTHENTICATION") {
+                "AUTHENTICATION"
+            } else if error_message.contains("TIMEOUT") {
+                "TIMEOUT"
+            } else if error_message.contains("INDEX") {
+                "INDEX"
+            } else {
+                "UNKNOWN"
+            };
+            
+            error!(
+                provider = provider,
+                model = model,
+                request_id = request_id,
+                error_category = error_category,
+                error_message = %e,
+                "Failed to export metrics to Elasticsearch: [{}] {}",
+                error_category, e
+            );
+            
             return Err(Box::new(e));
         }
+        
+        debug!(
+            provider = provider,
+            model = model,
+            request_id = request_id,
+            "Successfully exported metrics to Elasticsearch"
+        );
         
         Ok(())
     }

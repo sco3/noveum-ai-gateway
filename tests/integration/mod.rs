@@ -19,5 +19,6 @@ pub mod anthropic_test;
 pub mod groq_test;
 pub mod fireworks_test;
 pub mod together_test;
+pub mod bedrock_test;
 
 // Add more provider test modules here as they are implemented 

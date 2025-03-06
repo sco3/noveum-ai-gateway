@@ -8,13 +8,13 @@ metadata:
     cert-manager.io/issuer: prod-issuer
     cert-manager.io/issuer-kind: OriginIssuer
     cert-manager.io/issuer-group: cert-manager.k8s.cloudflare.com
-    external-dns.alpha.kubernetes.io/hostname: gate.noveum.ai
+    external-dns.alpha.kubernetes.io/hostname: gateway.noveum.ai
     external-dns.alpha.kubernetes.io/cloudflare-proxied: 'true'
     nginx.ingress.kubernetes.io/use-proxy-protocol: "true"
 spec:
   ingressClassName: kong
   rules:
-    - host: gate.noveum.ai
+    - host: gateway.noveum.ai
       http:
         paths:
           - backend:
@@ -26,7 +26,7 @@ spec:
             pathType: Prefix
   tls:
     - hosts:
-        - gate.noveum.ai
+        - gateway.noveum.ai
       secretName: noveum-tls-gateway
 ---
 apiVersion: v1
@@ -35,7 +35,7 @@ metadata:
   name: noveum-ai-gateway-svc
   namespace: noveum
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: gate.noveum.ai
+    external-dns.alpha.kubernetes.io/hostname: gateway.noveum.ai
 spec:
   selector:
     app: noveum-ai-gateway

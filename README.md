@@ -281,12 +281,12 @@ The gateway automatically handles the necessary transformations to ensure compat
 
 ### Testing Gateway URL
 ```
-https://gate.noveum.ai
+https://gateway.noveum.ai
 ```
 
 ### Send Example Request to Testing Gateway
 ```bash
-curl --location 'https://gate.noveum.ai/v1/chat/completions' \
+curl --location 'https://gateway.noveum.ai/v1/chat/completions' \
   --header 'Authorization: Bearer YOUR_API_KEY' \
   --header 'Content-Type: application/json' \
   --header 'x-provider: groq' \
@@ -419,6 +419,22 @@ docker run -p 3000:3000 \
   noveum/noveum-ai-gateway:latest
 ```
 
+### Using Pre-built Docker Image with Elasticsearch
+
+```bash
+docker pull noveum/noveum-ai-gateway:latest  --platform linux/amd64
+docker run --platform linux/amd64 -p 3000:3000 \
+  -e RUST_LOG=info \
+  -e ENABLE_ELASTICSEARCH=true \
+  -e ELASTICSEARCH_URL=http://localhost:9200 \
+  -e ELASTICSEARCH_USERNAME=elastic \
+  -e ELASTICSEARCH_PASSWORD=your_secure_password \
+  -e ELASTICSEARCH_INDEX=ai-gateway-metrics \
+  noveum/noveum-ai-gateway:latest
+```
+
+> **Note**: When running with Elasticsearch, make sure your Elasticsearch instance is accessible from the Docker container. If running Elasticsearch locally, you may need to use `host.docker.internal` instead of `localhost` in the URL.
+
 ### Docker Compose
 
 For detailed deployment instructions, please refer to the [Deployment Guide](docs/deployment.md).
@@ -458,6 +474,61 @@ services:
 ```
 
 Then run either option with:
+```bash
+docker-compose up -d
+```
+
+#### Option 3: Use Prebuilt Image with Elasticsearch
+
+Create a `docker-compose.yml` file with Elasticsearch integration:
+
+```yaml
+version: '3.8'
+services:
+  gateway:
+    image: noveum/noveum-ai-gateway:latest
+    platform: linux/amd64
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=info
+      - ENABLE_ELASTICSEARCH=true
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=your_secure_password
+      - ELASTICSEARCH_INDEX=ai-gateway-metrics
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - "ELASTIC_PASSWORD=your_secure_password"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=your_secure_password
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+
+volumes:
+  es_data:
+```
+
+Then run with:
 ```bash
 docker-compose up -d
 ```
@@ -584,6 +655,7 @@ Noveum Gateway includes comprehensive integration tests for all supported provid
    cargo test --test run_integration_tests groq -- --nocapture
    cargo test --test run_integration_tests fireworks -- --nocapture
    cargo test --test run_integration_tests together -- --nocapture
+   cargo test --test run_integration_tests bedrock -- --nocapture
    ```
 
 ### Test Environment Configuration

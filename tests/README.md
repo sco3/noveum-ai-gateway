@@ -67,6 +67,21 @@ For running tests, creating a `.env.test` file is recommended to keep your test 
 
 > **Note**: You can place the `.env.test` file either in the project root directory or in the `tests` directory. The tests will check both locations, prioritizing `.env.test` over the standard `.env` file.
 
+## Provider-Specific Test Information
+
+### AWS Bedrock
+
+The AWS Bedrock integration test uses the Claude 3 Sonnet model (`anthropic.claude-3-sonnet-20240229-v1:0`) by default. Unlike other providers that use API keys, Bedrock uses AWS credentials for authentication:
+
+- **AWS_ACCESS_KEY_ID**: Your AWS access key with Bedrock permissions
+- **AWS_SECRET_ACCESS_KEY**: Your AWS secret key
+- **AWS_REGION**: The AWS region where Bedrock is available (e.g., us-east-1)
+
+The test validates that:
+1. Request IDs are properly extracted from the AWS Bedrock response headers
+2. Streaming and non-streaming modes work correctly
+3. Token usage and metrics are properly captured in ElasticSearch
+
 ## Running the Tests
 
 ### Start the Gateway
@@ -110,17 +125,35 @@ cargo test --test run_integration_tests -- --nocapture
 
 The `--nocapture` flag ensures that test output (e.g., request/response details) is printed to the console, which is helpful for debugging.
 
-### Running Specific Provider Tests
+### Running Integration Tests
 
-To run tests for a specific provider:
+1. Set up your test environment:
+   ```bash
+   # Copy the sample test environment file
+   cp tests/.env.test.example .env.test
+   
+   # Edit the file to add your API keys for the providers you want to test
+   nano .env.test
+   ```
 
-```bash
-# Run only the OpenAI tests
-cargo test --test run_integration_tests openai -- --nocapture
+2. Start the gateway with ElasticSearch enabled:
+   ```bash
+   ENABLE_ELASTICSEARCH=true cargo run
+   ```
 
-# Run only the Anthropic tests
-cargo test --test run_integration_tests anthropic -- --nocapture
-```
+3. Run the integration tests:
+   ```bash
+   # Run all tests
+   cargo test --test run_integration_tests -- --nocapture
+   
+   # Run tests for specific providers
+   cargo test --test run_integration_tests openai -- --nocapture
+   cargo test --test run_integration_tests anthropic -- --nocapture
+   cargo test --test run_integration_tests groq -- --nocapture
+   cargo test --test run_integration_tests fireworks -- --nocapture
+   cargo test --test run_integration_tests together -- --nocapture
+   cargo test --test run_integration_tests bedrock -- --nocapture
+   ```
 
 ## Debugging Test Failures
 

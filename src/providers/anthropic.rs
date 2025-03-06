@@ -202,19 +202,36 @@ impl MetricsExtractor for AnthropicMetricsExtractor {
         
         // Extract usage data
         if let Some(usage) = response_body.get("usage") {
-            metrics.input_tokens = usage.get("input_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
-            metrics.output_tokens = usage.get("output_tokens").and_then(|v| v.as_u64()).map(|v| v as u32);
+            // Check for input tokens (Anthropic uses "prompt_tokens")
+            metrics.input_tokens = usage.get("prompt_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u32)
+                .or_else(|| usage.get("input_tokens").and_then(|v| v.as_u64()).map(|v| v as u32));
             
-            // Calculate total tokens if both input and output tokens are available
-            if let (Some(input), Some(output)) = (metrics.input_tokens, metrics.output_tokens) {
-                metrics.total_tokens = Some(input + output);
-            }
-            // If only one is available, use that as the total
-            else if metrics.input_tokens.is_some() {
-                metrics.total_tokens = metrics.input_tokens;
-            } 
-            else if metrics.output_tokens.is_some() {
-                metrics.total_tokens = metrics.output_tokens;
+            // Check for output tokens (Anthropic uses "completion_tokens")
+            metrics.output_tokens = usage.get("completion_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u32)
+                .or_else(|| usage.get("output_tokens").and_then(|v| v.as_u64()).map(|v| v as u32));
+            
+            // Get total tokens directly if available
+            metrics.total_tokens = usage.get("total_tokens")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u32);
+            
+            // If total_tokens isn't available directly, calculate it from input and output
+            if metrics.total_tokens.is_none() {
+                // Calculate total tokens if both input and output tokens are available
+                if let (Some(input), Some(output)) = (metrics.input_tokens, metrics.output_tokens) {
+                    metrics.total_tokens = Some(input + output);
+                }
+                // If only one is available, use that as the total
+                else if metrics.input_tokens.is_some() {
+                    metrics.total_tokens = metrics.input_tokens;
+                } 
+                else if metrics.output_tokens.is_some() {
+                    metrics.total_tokens = metrics.output_tokens;
+                }
             }
         }
 

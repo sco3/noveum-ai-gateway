@@ -43,6 +43,7 @@
 //! cargo test --test run_integration_tests groq -- --nocapture
 //! cargo test --test run_integration_tests fireworks -- --nocapture
 //! cargo test --test run_integration_tests together -- --nocapture
+//! cargo test --test run_integration_tests bedrock -- --nocapture
 //! ```
 
 mod integration; 
