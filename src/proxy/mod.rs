@@ -70,11 +70,6 @@ pub async fn proxy_request_to_provider(
         headers
     };
 
-    debug!(
-        "Final headers in proxy_request_to_provider: {:?}",
-        final_headers
-    );
-
     // Send the request with signed headers
     let response = send_provider_request(
         original_request.method().clone(),
@@ -112,11 +107,6 @@ pub async fn send_provider_request(
                 })
         })
         .collect::<reqwest::header::HeaderMap>();
-
-    debug!(
-        "Final headers in send_provider_request: {:?}",
-        reqwest_headers
-    );
 
     let response = client
         .request(method, url)

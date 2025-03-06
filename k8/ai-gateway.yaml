@@ -12,7 +12,7 @@ metadata:
     external-dns.alpha.kubernetes.io/cloudflare-proxied: 'true'
     nginx.ingress.kubernetes.io/use-proxy-protocol: "true"
 spec:
-  ingressClassName: kong
+  ingressClassName: nginx
   rules:
     - host: gateway.noveum.ai
       http:
@@ -34,8 +34,6 @@ kind: Service
 metadata:
   name: noveum-ai-gateway-svc
   namespace: noveum
-  annotations:
-    external-dns.alpha.kubernetes.io/hostname: gateway.noveum.ai
 spec:
   selector:
     app: noveum-ai-gateway
@@ -67,10 +65,6 @@ spec:
       labels:
         app: noveum-ai-gateway
     spec:
-      nodeSelector:
-        kubernetes.io/arch: amd64
-      imagePullSecrets:
-        - name: regcred
       containers:
         - name: noveum-ai-gateway
           image: noveum/noveum-ai-gateway:latest
