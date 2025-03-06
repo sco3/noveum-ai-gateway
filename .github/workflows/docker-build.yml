@@ -98,8 +98,8 @@ jobs:
           context: .
           push: true
           tags: |
-            magicapi1/magicapi-ai-gateway:latest
-            magicapi1/magicapi-ai-gateway:${{ env.CARGO_VERSION }}
+            noveum/noveum-ai-gateway:latest
+            noveum/noveum-ai-gateway:${{ env.CARGO_VERSION }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
