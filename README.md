@@ -1,13 +1,13 @@
 <div align="center">
 
-# MagicAPI AI Gateway
+# Noveum AI Gateway
 
 🚀 The world's fastest AI Gateway proxy, written in Rust and optimized for maximum performance. This high-performance API gateway routes requests to various AI providers (OpenAI, Anthropic, GROQ, Fireworks, Together, AWS Bedrock) with streaming support, making it perfect for developers who need reliable and blazing-fast AI API access.
 
-[![Rust](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml/badge.svg)](https://github.com/MagicAPI/ai-gateway/actions/workflows/rust.yml)
-[![Crates.io](https://img.shields.io/crates/v/magicapi-ai-gateway.svg)](https://crates.io/crates/magicapi-ai-gateway)
+[![Rust](https://github.com/Noveum/ai-gateway/actions/workflows/rust.yml/badge.svg)](https://github.com/Noveum/ai-gateway/actions/workflows/rust.yml)
+[![Crates.io](https://img.shields.io/crates/v/noveum-ai-gateway.svg)](https://crates.io/crates/noveum-ai-gateway)
 [![License: MIT/Apache-2.0](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE-MIT)
-[![Docker Pulls](https://img.shields.io/docker/pulls/magicapi1/magicapi-ai-gateway)](https://hub.docker.com/r/magicapi1/magicapi-ai-gateway)
+[![Docker Pulls](https://img.shields.io/docker/pulls/noveum/noveum-ai-gateway)](https://hub.docker.com/r/noveum/noveum-ai-gateway)
 
 [Quick Start](#quick-start) • 
 [Documentation](docs/) • 
@@ -39,30 +39,30 @@
 
 ### Installation
 
-You can install MagicAPI Gateway using one of these methods:
+You can install Noveum Gateway using one of these methods:
 
 ### One Line Install & Run (With Cargo Install)
 
 ```bash
-curl https://sh.rustup.rs -sSf | sh && cargo install magicapi-ai-gateway && magicapi-ai-gateway
+curl https://sh.rustup.rs -sSf | sh && cargo install noveum-ai-gateway && noveum-ai-gateway
 ```
 
 #### Using Cargo Install
 
 ```bash
-cargo install magicapi-ai-gateway
+cargo install noveum-ai-gateway
 ```
 
 After installation, you can start the gateway by running:
 ```bash
-magicapi-ai-gateway
+noveum-ai-gateway
 ```
 
 #### Building from Source
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/magicapi/ai-gateway
+git clone https://github.com/noveum/ai-gateway
 cd ai-gateway
 ```
 
@@ -87,10 +87,10 @@ You can configure the gateway using environment variables:
 export RUST_LOG=info
 
 # Start the gateway
-magicapi-ai-gateway
+noveum-ai-gateway
 
 # Or with custom port
-PORT=8080 magicapi-ai-gateway
+PORT=8080 noveum-ai-gateway
 ```
 
 ## 📚 Usage Examples
@@ -196,14 +196,14 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 
 ## SDK Compatibility
 
-The MagicAPI AI Gateway is designed to work seamlessly with popular AI SDKs. You can use the official OpenAI SDK to interact with any supported provider by simply configuring the baseURL and adding the appropriate provider header.
+The Noveum AI Gateway is designed to work seamlessly with popular AI SDKs. You can use the official OpenAI SDK to interact with any supported provider by simply configuring the baseURL and adding the appropriate provider header.
 
 ### Using with OpenAI's Official Node.js SDK
 
 ```typescript
 import OpenAI from 'openai';
 
-// Configure the SDK to use MagicAPI Gateway
+// Configure the SDK to use Noveum Gateway
 const openai = new OpenAI({
   apiKey: process.env.PROVIDER_API_KEY, // Use any provider's API key
   baseURL: "http://localhost:3000/v1/", // Point to the gateway
@@ -281,12 +281,12 @@ The gateway automatically handles the necessary transformations to ensure compat
 
 ### Testing Gateway URL
 ```
-https://gateway.magicapi.dev
+https://gate.noveum.ai
 ```
 
 ### Send Example Request to Testing Gateway
 ```bash
-curl --location 'https://gateway.magicapi.dev/v1/chat/completions' \
+curl --location 'https://gate.noveum.ai/v1/chat/completions' \
   --header 'Authorization: Bearer YOUR_API_KEY' \
   --header 'Content-Type: application/json' \
   --header 'x-provider: groq' \
@@ -325,7 +325,7 @@ The gateway leverages the best-in-class Rust ecosystem:
 
 ## 📈 Performance
 
-MagicAPI Developer AI Gateway is designed for maximum performance:
+Noveum Developer AI Gateway is designed for maximum performance:
 
 - **Zero-cost abstractions** using Rust's ownership model
 - **Asynchronous I/O** with Tokio for optimal resource utilization
@@ -378,12 +378,12 @@ cargo watch -x run
 
 ## 💬 Community
 
-- [GitHub Discussions](https://github.com/magicapi/ai-gateway/discussions)
-- [Twitter](https://twitter.com/magicapi)
+- [GitHub Discussions](https://github.com/noveum/ai-gateway/discussions)
+- [Twitter](https://twitter.com/noveum-ai)
 
 ## 🙏 Acknowledgments
 
-Special thanks to all [contributors](https://github.com/magicapi/ai-gateway/graphs/contributors) and the Rust community.
+Special thanks to all [contributors](https://github.com/noveum/ai-gateway/graphs/contributors) and the Rust community.
 
 ## 📄 License
 
@@ -395,28 +395,28 @@ This project is dual-licensed under both the MIT License and the Apache License 
 
 1. Build the Docker image:
 ```bash
-docker buildx build --platform linux/amd64 -t magicapi1/magicapi-ai-gateway:latest . --load
+docker buildx build --platform linux/amd64 -t noveum/noveum-ai-gateway:latest . --load
 ```
 
 2. Push the image to Docker Hub:
 ```bash
-docker push magicapi1/magicapi-ai-gateway:latest
+docker push noveum/noveum-ai-gateway:latest
 ```
 
 3. Run the container:
 ```bash
 docker run -p 3000:3000 \
   -e RUST_LOG=info \
-  magicapi1/magicapi-ai-gateway:latest
+  noveum/noveum-ai-gateway:latest
 ```
 
 ### Using Pre-built Docker Image
 
 ```bash
-docker pull magicapi1/magicapi-ai-gateway:latest
+docker pull noveum/noveum-ai-gateway:latest
 docker run -p 3000:3000 \
   -e RUST_LOG=info \
-  magicapi1/magicapi-ai-gateway:latest
+  noveum/noveum-ai-gateway:latest
 ```
 
 ### Docker Compose
@@ -448,7 +448,7 @@ Create a `docker-compose.yml` file:
 version: '3.8'
 services:
   gateway:
-    image: magicapi1/magicapi-ai-gateway:latest
+    image: noveum/noveum-ai-gateway:latest
     platform: linux/amd64
     ports:
       - "3000:3000"
@@ -462,7 +462,7 @@ Then run either option with:
 docker-compose up -d
 ```
 
-## Release Process for magicapi-ai-gateway
+## Release Process for noveum-ai-gateway
 
 ### 1. Pre-release Checklist
 - [ ] Update version number in `Cargo.toml`
@@ -514,17 +514,17 @@ git push origin main
 
 ### 5. Version Verification
 After publishing, verify:
-- The new version appears on [crates.io](https://crates.io/crates/magicapi-ai-gateway)
-- Documentation is updated on [docs.rs](https://docs.rs/magicapi-ai-gateway)
+- The new version appears on [crates.io](https://crates.io/crates/noveum-ai-gateway)
+- Documentation is updated on [docs.rs](https://docs.rs/noveum-ai-gateway)
 - The GitHub release is visible (if using GitHub)
 
 ## Testing Deployment
 
-MagicAPI provides a testing deployment of the AI Gateway, hosted in our London data centre. This deployment is intended for testing and evaluation purposes only, and should not be used for production workloads.
+Noveum provides a testing deployment of the AI Gateway, hosted in our London data centre. This deployment is intended for testing and evaluation purposes only, and should not be used for production workloads.
 
 ## 📊 OpenTelemetry Logging
 
-MagicAPI AI Gateway now supports OpenTelemetry compatible logs for enhanced observability. The Gateway can export detailed request logs with a rich structured format that includes complete request/response details and performance metrics.
+Noveum AI Gateway now supports OpenTelemetry compatible logs for enhanced observability. The Gateway can export detailed request logs with a rich structured format that includes complete request/response details and performance metrics.
 
 ### Tracking Headers
 
@@ -555,7 +555,7 @@ For more details, see the [Elasticsearch Integration Guide](docs/elasticsearch-i
 
 ## Testing
 
-MagicAPI Gateway includes comprehensive integration tests for all supported providers (OpenAI, Anthropic, GROQ, Fireworks, Together AI, and AWS Bedrock). These tests validate both non-streaming and streaming functionality.
+Noveum Gateway includes comprehensive integration tests for all supported providers (OpenAI, Anthropic, GROQ, Fireworks, Together AI, and AWS Bedrock). These tests validate both non-streaming and streaming functionality.
 
 ### Running Integration Tests
 

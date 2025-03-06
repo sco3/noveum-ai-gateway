@@ -82,7 +82,7 @@ For Docker-based deployments, update your `docker-compose.yml` file:
 version: '3.8'
 services:
   gateway:
-    image: magicapi1/magicapi-ai-gateway:latest
+    image: noveum/noveum-ai-gateway:latest
     environment:
       - RUST_LOG=info
       - ENABLE_ELASTICSEARCH=true

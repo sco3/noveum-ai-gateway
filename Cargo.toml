@@ -1,13 +1,13 @@
 [package]
-name = "magicapi-ai-gateway"
+name = "noveum-ai-gateway"
 version = "0.2.0"
 edition = "2021"
 description = "A high-performance AI Gateway proxy for routing requests to various AI providers, offering seamless integration and management of multiple AI services"
-authors = ["MagicAPI Team <team@magicapi.com>"]
+authors = ["MagicAPI Team <team@noveum.ai>"]
 license = "MIT OR Apache-2.0"
-homepage = "https://magicapi.com"
-repository = "https://github.com/magicapi/ai-gateway"
-documentation = "https://docs.magicapi.com"
+homepage = "https://noveum.ai"
+repository = "https://github.com/noveum/ai-gateway"
+documentation = "https://docs.noveum.ai"
 readme = "README.md"
 keywords = ["ai", "gateway", "proxy", "openai", "llm"]
 categories = ["web-programming", "api-bindings", "asynchronous"]
@@ -60,7 +60,7 @@ elasticsearch = "8.16.0-alpha.1"
 uuid = { version = "1.15.1", features = ["serde", "v4"] }
 
 [dev-dependencies]
-magicapi-ai-gateway = { path = "." }
+noveum-ai-gateway = { path = "." }
 hex = "0.4"
 test-log = { version = "0.2", features = ["trace"] }
 uuid = { version = "1.15.1", features = ["serde", "v4"] }

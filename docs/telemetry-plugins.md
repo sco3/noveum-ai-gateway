@@ -99,7 +99,7 @@ impl TelemetryPlugin for ElasticsearchPlugin {
         let url = std::env::var("ELASTICSEARCH_URL")
             .unwrap_or_else(|_| "http://localhost:9200".to_string());
         let index = std::env::var("ELASTICSEARCH_INDEX")
-            .unwrap_or_else(|_| "magicapi-metrics".to_string());
+            .unwrap_or_else(|_| "noveum-metrics".to_string());
             
         Box::new(ElasticsearchExporter::new(url, index))
     }
@@ -129,7 +129,7 @@ ENABLED_EXPORTERS=prometheus,elasticsearch
 
 # Elasticsearch configuration
 ELASTICSEARCH_URL=http://localhost:9200
-ELASTICSEARCH_INDEX=magicapi-metrics
+ELASTICSEARCH_INDEX=noveum-metrics
 ```
 
 ### Docker Compose Example
@@ -138,11 +138,11 @@ ELASTICSEARCH_INDEX=magicapi-metrics
 version: '3.8'
 services:
   gateway:
-    image: magicapi1/magicapi-ai-gateway:latest
+    image: noveum/noveum-ai-gateway:latest
     environment:
       - ENABLED_EXPORTERS=prometheus,elasticsearch
       - ELASTICSEARCH_URL=http://elasticsearch:9200
-      - ELASTICSEARCH_INDEX=magicapi-metrics
+      - ELASTICSEARCH_INDEX=noveum-metrics
     ports:
       - "3000:3000"
     depends_on:

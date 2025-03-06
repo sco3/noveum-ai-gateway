@@ -2,43 +2,43 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: magicapi-gateway-ingress
-  namespace: magicapi
+  name: noveum-gateway-ingress
+  namespace: noveum
   annotations:
     cert-manager.io/issuer: prod-issuer
     cert-manager.io/issuer-kind: OriginIssuer
     cert-manager.io/issuer-group: cert-manager.k8s.cloudflare.com
-    external-dns.alpha.kubernetes.io/hostname: gateway.magicapi.dev
+    external-dns.alpha.kubernetes.io/hostname: gate.noveum.ai
     external-dns.alpha.kubernetes.io/cloudflare-proxied: 'true'
     nginx.ingress.kubernetes.io/use-proxy-protocol: "true"
 spec:
   ingressClassName: kong
   rules:
-    - host: gateway.magicapi.dev
+    - host: gate.noveum.ai
       http:
         paths:
           - backend:
               service:
-                name: magicapi-gateway-svc
+                name: noveum-ai-gateway-svc
                 port:
                   number: 80
             path: /
             pathType: Prefix
   tls:
     - hosts:
-        - gateway.magicapi.dev
-      secretName: magicapi-tls-gateway
+        - gate.noveum.ai
+      secretName: noveum-tls-gateway
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: magicapi-gateway-svc
-  namespace: magicapi
+  name: noveum-ai-gateway-svc
+  namespace: noveum
   annotations:
-    external-dns.alpha.kubernetes.io/hostname: gateway.magicapi.dev
+    external-dns.alpha.kubernetes.io/hostname: gate.noveum.ai
 spec:
   selector:
-    app: magicapi-gateway
+    app: noveum-ai-gateway
   type: ClusterIP
   ports:
     - port: 80
@@ -48,15 +48,15 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: magicapi-gateway
-  namespace: magicapi
+  name: noveum-ai-gateway
+  namespace: noveum
   labels:
-    app: magicapi-gateway
+    app: noveum-ai-gateway
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: magicapi-gateway
+      app: noveum-ai-gateway
   strategy:
     rollingUpdate:
       maxSurge: 10%
@@ -65,15 +65,15 @@ spec:
   template:
     metadata:
       labels:
-        app: magicapi-gateway
+        app: noveum-ai-gateway
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
       imagePullSecrets:
         - name: regcred
       containers:
-        - name: magicapi-gateway
-          image: magicapi1/magicapi-ai-gateway:latest
+        - name: noveum-ai-gateway
+          image: noveum/noveum-ai-gateway:latest
           env:
             - name: RUST_LOG
               value: "info"
@@ -98,13 +98,13 @@ spec:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: magicapi-gateway
-  namespace: magicapi
+  name: noveum-ai-gateway
+  namespace: noveum
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: magicapi-gateway
+    name: noveum-ai-gateway
   minReplicas: 1
   maxReplicas: 50
   metrics:

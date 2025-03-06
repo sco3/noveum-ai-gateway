@@ -24,14 +24,14 @@ COPY src ./src
 
 # Build the application
 RUN RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-gnu && \
-    strip target/x86_64-unknown-linux-gnu/release/magicapi-ai-gateway
+    strip target/x86_64-unknown-linux-gnu/release/noveum-ai-gateway
 
 # Runtime stage
 FROM --platform=linux/amd64 debian:bookworm-slim
 
 # Add LABEL to identify the image
-LABEL org.opencontainers.image.source="https://github.com/magicapi/ai-gateway"
-LABEL org.opencontainers.image.description="MagicAPI AI Gateway"
+LABEL org.opencontainers.image.source="https://github.com/noveum-ai/ai-gateway"
+LABEL org.opencontainers.image.description="Noveum AI Gateway"
 LABEL org.opencontainers.image.version="latest"
 
 # Install runtime dependencies
@@ -40,7 +40,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from builder
-COPY --from=builder /usr/src/app/target/x86_64-unknown-linux-gnu/release/magicapi-ai-gateway /usr/local/bin/
+COPY --from=builder /usr/src/app/target/x86_64-unknown-linux-gnu/release/noveum-ai-gateway /usr/local/bin/
 
 # Set the startup command
-CMD ["magicapi-ai-gateway"] 
+CMD ["noveum-ai-gateway"] 

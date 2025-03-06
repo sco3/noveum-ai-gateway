@@ -41,15 +41,15 @@ impl Provider for OpenAIProvider {
 
         // Process authentication
         if let Some(api_key) = original_headers
-            .get("x-magicapi-api-key")
+            .get("x-noveum-api-key")
             .and_then(|h| h.to_str().ok())
         {
-            debug!("Using x-magicapi-api-key for authentication");
+            debug!("Using x-noveum-api-key for authentication");
             headers.insert(
                 http::header::AUTHORIZATION,
                 http::header::HeaderValue::from_str(&format!("Bearer {}", api_key)).map_err(
                     |_| {
-                        error!("Failed to create authorization header from x-magicapi-api-key");
+                        error!("Failed to create authorization header from x-noveum-api-key");
                         AppError::InvalidHeader
                     },
                 )?,
