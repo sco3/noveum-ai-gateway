@@ -141,8 +141,8 @@ fn get_api_key(env_var_name: &str) -> String {
     
     match env::var(env_var_name) {
         Ok(key) if !key.is_empty() => key,
-        Ok(_) => panic!("{} is set but empty in .env.test file", env_var_name),
-        Err(_) => panic!("{} must be set in .env.test file. Make sure you have created the .env.test file and added your API key.", env_var_name),
+        Ok(_) => panic!("{} is set but empty. Please provide a valid value.", env_var_name),
+        Err(_) => panic!("{} must be set either in .env.test file or as an environment variable.", env_var_name),
     }
 }
 
