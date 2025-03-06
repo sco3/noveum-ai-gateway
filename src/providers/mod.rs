@@ -66,12 +66,13 @@ pub trait Provider: Send + Sync {
     }
 }
 
-mod anthropic;
-mod bedrock;
-mod fireworks;
-mod groq;
-mod openai;
-mod together;
+// Use pub instead of mod to make the modules and their contents public
+pub mod anthropic;
+pub mod bedrock;
+pub mod fireworks;
+pub mod groq;
+pub mod openai;
+pub mod together;
 
 pub use anthropic::AnthropicProvider;
 pub use bedrock::BedrockProvider;

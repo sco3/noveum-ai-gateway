@@ -8,8 +8,8 @@
 ```yaml
 version: '3.8'
 services:
-  magicapi:
-    image: magicapi/ai-gateway:latest
+  noveum:
+    image: noveum/noveum-ai-gateway:latest
     ports:
       - "3000:3000"
     environment:
@@ -20,14 +20,14 @@ services:
 #### Manual Docker Commands
 ```bash
 # Build the image
-docker build -t magicapi-gateway .
+docker build -t noveum-ai-gateway .
 
 # Run the container
 docker run -d \
   -p 3000:3000 \
   -e RUST_LOG=info \
-  --name magicapi \
-  magicapi-gateway
+  --name noveum \
+  noveum-ai-gateway
 ```
 
 ### Kubernetes Deployment
@@ -36,23 +36,23 @@ docker run -d \
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: magicapi-gateway
+  name: noveum-ai-gateway
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: magicapi-gateway
+      app: noveum-ai-gateway
   template:
     metadata:
       labels:
-        app: magicapi-gateway
+        app: noveum-ai-gateway
     spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
       containers:
-      - name: magicapi-gateway
-        image: magicapi/ai-gateway:latest
+      - name: noveum-ai-gateway
+        image: noveum/noveum-ai-gateway:latest
         ports:
         - containerPort: 3000
         env:
@@ -83,10 +83,10 @@ spec:
 +apiVersion: v1
 +kind: Service
 +metadata:
-+  name: magicapi-gateway
++  name: noveum-ai-gateway
 +spec:
 +  selector:
-+    app: magicapi-gateway
++    app: noveum-ai-gateway
 +  ports:
 +    - protocol: TCP
 +      port: 80
@@ -115,10 +115,10 @@ spec:
 ### Horizontal Scaling
 ```bash
 # Kubernetes scaling
-kubectl scale deployment magicapi-gateway --replicas=5
+kubectl scale deployment noveum-ai-gateway --replicas=5
 
 # Docker Swarm scaling
-docker service scale magicapi_gateway=5
+docker service scale noveum_gateway=5
 ```
 
 ### Resource Allocation
@@ -137,8 +137,8 @@ resources:
 ### Update Procedure
 ```bash
 # Rolling update in Kubernetes
-kubectl set image deployment/magicapi-gateway \
-  magicapi-gateway=magicapi/ai-gateway:new-version
+kubectl set image deployment/noveum-ai-gateway \
+  noveum-ai-gateway=noveum/noveum-ai-gateway:new-version
 
 # Docker update
 docker-compose pull

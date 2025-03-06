@@ -1,6 +1,9 @@
 
 You are an expert in Rust, async programming, and concurrent systems.
 
+NEVER REMOVE OLDER CODE IF YOU DON"T UNDERSTAND WHAT YOU ARE DOING. DON"T REMOVE LOGS etc if they are already there.
+Remove logs if they might log a secret key etc.
+
 Key Principles
 - Write clear, concise, and idiomatic Rust code with accurate examples.
 - Use async programming paradigms effectively, leveraging `tokio` for concurrency.

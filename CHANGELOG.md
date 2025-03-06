@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2024-11-25
+### Added
+- Comprehensive telemetry system with robust metrics collection
+- Elasticsearch integration for advanced log and metrics analysis
+- Detailed request and response metrics tracking
+- Integration tests for all supported providers
+- Debug mode for local development and troubleshooting
+- Plugin-based architecture for telemetry exporters (See [Telemetry Plugins Guide](docs/telemetry-plugins.md))
+- OpenTelemetry compatible log format for standardized observability
+
+### Enhanced
+- Significantly improved logging system with structured logs
+- Renamed project from MagicAPI to Noveum AI Gateway
+- Optimized metrics middleware for performance monitoring
+- Updated documentation to reflect new features and capabilities
+- Console plugin for local metrics visualization
+- Elasticsearch exporter for advanced analytics and visualization (See [Elasticsearch Integration Guide](docs/elasticsearch-integration.md))
+- Complete token usage tracking with cost estimation
+- Detailed performance metrics for each request including latency and TTFB
+- Provider-specific metrics for better monitoring and analysis
+- Thread-based optimizations for improved concurrency handling
+
+### Fixed
+- Various performance bottlenecks in request processing
+- Inconsistencies in provider metrics reporting
+- Resource management for long-running requests
+
 ## [0.2.0] - 2024-11-20
 ### Added
 - AWS Bedrock models support via the same gateway, allowing access to streaming capabilities through OpenAI-compatible interfaces.
@@ -22,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.7] - 2024-11-13
 ### Added
-- Managed deployment offering with testing gateway at gateway.magicapi.dev
+- Managed deployment offering with testing gateway at gate.noveum.ai
 - Thread-based performance optimizations for improved request handling
 - Documentation for testing deployment environment
 ### Enhanced
@@ -91,9 +118,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error handling
 - Basic documentation
 
-[Unreleased]: https://github.com/MagicAPI/ai-gateway/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.7...v0.2.0
-[0.1.7]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.6...v0.1.7
-[0.1.6]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.5...v0.1.6
-[0.1.5]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.4...v0.1.5
-[0.1.3]: https://github.com/MagicAPI/ai-gateway/compare/v0.1.0...v0.1.3
+[Unreleased]: https://github.com/noveum/ai-gateway/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/noveum/ai-gateway/compare/v0.2.0...v1.0.0
+[0.2.0]: https://github.com/noveum/ai-gateway/compare/v0.1.7...v0.2.0
+[0.1.7]: https://github.com/noveum/ai-gateway/compare/v0.1.6...v0.1.7
+[0.1.6]: https://github.com/noveum/ai-gateway/compare/v0.1.5...v0.1.6
+[0.1.5]: https://github.com/noveum/ai-gateway/compare/v0.1.4...v0.1.5
+[0.1.3]: https://github.com/noveum/ai-gateway/compare/v0.1.0...v0.1.3
