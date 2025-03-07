@@ -86,6 +86,8 @@ Create a new file in `src/telemetry/plugins/elasticsearch.rs`:
 use inventory::submit;
 use crate::telemetry::{plugins::TelemetryPlugin, TelemetryExporter};
 use crate::telemetry::exporters::elasticsearch::ElasticsearchExporter;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tracing::info;
 
 pub struct ElasticsearchPlugin;
 
@@ -100,6 +102,8 @@ impl TelemetryPlugin for ElasticsearchPlugin {
             .unwrap_or_else(|_| "http://localhost:9200".to_string());
         let index = std::env::var("ELASTICSEARCH_INDEX")
             .unwrap_or_else(|_| "noveum-metrics".to_string());
+            
+        info!("Creating Elasticsearch telemetry exporter for index: {}", index);
             
         Box::new(ElasticsearchExporter::new(url, index))
     }
@@ -118,6 +122,24 @@ Add to `src/telemetry/exporters/mod.rs`:
 pub mod elasticsearch;
 pub use elasticsearch::ElasticsearchExporter;
 ```
+
+## Telemetry Logging
+
+The MagicAPI Gateway now includes informative logging about telemetry operations. These logs provide visibility into the health and performance of your telemetry exporters:
+
+- Initialization logs when exporters are created
+- Periodic logs showing the number of processed requests
+- Counters for successfully exported documents
+- Detailed error tracking with categorization
+
+Example log output:
+```
+INFO: Initialized Elasticsearch telemetry plugin for index: ai-gateway-metrics
+INFO: Elasticsearch telemetry plugin has processed 500 requests
+INFO: Successfully exported 100 documents to Elasticsearch index: ai-gateway-metrics
+```
+
+These logs are emitted at sensible intervals to avoid flooding your logs while still providing useful operational insights.
 
 ## Configuration
 
@@ -498,11 +520,14 @@ use crate::telemetry::metrics::MetricsExporter;
 use async_trait::async_trait;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::error::Error;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct PostgresPlugin {
     pool: Pool<Postgres>,
     table_name: String,
+    requests_processed: AtomicUsize,
+    docs_exported: AtomicUsize,
 }
 
 impl PostgresPlugin {
@@ -529,9 +554,13 @@ impl PostgresPlugin {
             .execute(&pool)
             .await?;
             
+        info!("Initialized PostgreSQL telemetry plugin for table: {}", table_name);
+            
         Ok(Self {
             pool,
             table_name,
+            requests_processed: AtomicUsize::new(0),
+            docs_exported: AtomicUsize::new(0),
         })
     }
 }
@@ -539,6 +568,12 @@ impl PostgresPlugin {
 #[async_trait]
 impl TelemetryPlugin for PostgresPlugin {
     async fn export(&self, metrics: &RequestMetrics) -> Result<(), Box<dyn Error>> {
+        // Increment and log request counts periodically
+        let req_count = self.requests_processed.fetch_add(1, Ordering::Relaxed) + 1;
+        if req_count % 500 == 0 {
+            info!("PostgreSQL telemetry plugin has processed {} requests", req_count);
+        }
+        
         // Convert metrics to OpenTelemetry format
         let document = metrics.to_otel_log();
         let json_data = serde_json::to_value(&document)?;
@@ -564,6 +599,12 @@ impl TelemetryPlugin for PostgresPlugin {
         if let Err(e) = result {
             error!("Failed to insert metrics into PostgreSQL: {}", e);
             return Err(e.into());
+        }
+        
+        // Log successful exports periodically
+        let count = self.docs_exported.fetch_add(1, Ordering::Relaxed) + 1;
+        if count % 100 == 0 {
+            info!("Successfully exported {} documents to PostgreSQL table: {}", count, self.table_name);
         }
         
         Ok(())

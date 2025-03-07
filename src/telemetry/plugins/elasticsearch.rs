@@ -11,15 +11,18 @@ use opentelemetry::trace::TraceError;
 use std::error::Error;
 use std::time::Duration;
 use tokio::time::timeout;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, warn, info};
 use tokio_retry::{
     strategy::{ExponentialBackoff, jitter},
     Retry,
 };
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct ElasticsearchPlugin {
     client: Elasticsearch,
     index: String,
+    requests_processed: AtomicUsize,
+    docs_exported: AtomicUsize,
 }
 
 impl ElasticsearchPlugin {
@@ -38,23 +41,29 @@ impl ElasticsearchPlugin {
             }
         };
 
+        info!("Initialized Elasticsearch telemetry plugin for index: {}", index);
+
         Ok(Self {
             client: Elasticsearch::new(transport),
             index,
+            requests_processed: AtomicUsize::new(0),
+            docs_exported: AtomicUsize::new(0),
         })
     }
 
     // Enhanced send_metrics method with retries and better error handling
-    async fn send_metrics(&self, document: serde_json::Value) -> Result<(), TraceError> {
+    async fn send_metrics(&self, document: serde_json::Value, request_id: &str) -> Result<(), TraceError> {
         // Configure retry strategy with exponential backoff
         let retry_strategy = ExponentialBackoff::from_millis(100)
             .map(jitter) // Add jitter to prevent thundering herd
             .take(3);    // Max 3 retries
         
-        debug!("Sending metrics to Elasticsearch index: {}", self.index);
+        // Log sending to Elasticsearch at start
+        info!("Sending telemetry data to Elasticsearch, request_id: {}", request_id);
         
         let index = self.index.clone();
         let client = self.client.clone();
+        let request_id = request_id.to_string(); // Clone for use in async block
         
         let result = Retry::spawn(retry_strategy, || async {
             match timeout(Duration::from_secs(10), client.index(IndexParts::Index(&index)).body(document.clone()).send()).await {
@@ -118,7 +127,15 @@ impl ElasticsearchPlugin {
         }).await;
         
         match result {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                let count = self.docs_exported.fetch_add(1, Ordering::Relaxed) + 1;
+                
+                // Only log count periodically, not every single successful export
+                if count % 100 == 0 {
+                    info!("Elasticsearch telemetry: {} documents exported successfully", count);
+                }
+                Ok(())
+            },
             Err(e) => {
                 let error_str = e.to_string();
                 let retry_exhausted = error_str.contains("retry") || error_str.contains("attempt");
@@ -168,6 +185,12 @@ impl ElasticsearchPlugin {
 #[async_trait]
 impl TelemetryPlugin for ElasticsearchPlugin {
     async fn export(&self, metrics: &RequestMetrics) -> Result<(), Box<dyn Error>> {
+        // Increment request counter and log periodically
+        let req_count = self.requests_processed.fetch_add(1, Ordering::Relaxed) + 1;
+        if req_count % 500 == 0 {
+            info!("Elasticsearch telemetry plugin has processed {} requests", req_count);
+        }
+
         // Convert metrics to OpenTelemetry format
         let document = metrics.to_otel_log();
         
@@ -176,14 +199,21 @@ impl TelemetryPlugin for ElasticsearchPlugin {
         let model = document["attributes"]["model"].as_str().unwrap_or("unknown");
         let request_id = document["attributes"]["id"].as_str().unwrap_or("unknown");
         
+        // Extract provider request ID if available
+        let provider_request_id = document["attributes"]["metadata"]["provider_request_id"]
+            .as_str()
+            .unwrap_or(request_id);
+
+        // We'll log at the beginning of the export but not both at beginning and end
         debug!(
             provider = provider,
             model = model,
             request_id = request_id,
+            provider_request_id = provider_request_id,
             "Exporting metrics to Elasticsearch for request"
         );
         
-        if let Err(e) = self.send_metrics(document.clone()).await {
+        if let Err(e) = self.send_metrics(document.clone(), provider_request_id).await {
             let error_message = e.to_string();
             let error_category = if error_message.contains("CONNECTION") {
                 "CONNECTION"
@@ -206,6 +236,9 @@ impl TelemetryPlugin for ElasticsearchPlugin {
                 "Failed to export metrics to Elasticsearch: [{}] {}",
                 error_category, e
             );
+            
+            // Log a clear error message for operational visibility
+            error!("Elasticsearch telemetry export failed: {} - Check Elasticsearch connection", error_category);
             
             return Err(Box::new(e));
         }

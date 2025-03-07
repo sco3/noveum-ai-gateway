@@ -41,6 +41,33 @@ use crate::{
 
 #[tokio::main]
 async fn main() {
+    // Display startup animation
+    let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    print!("\n    Starting Noveum AI Gateway ");
+    for frame in frames.iter().cycle().take(15) {
+        print!("\r    Starting Noveum AI Gateway {}  ", frame.bright_cyan());
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;
+    }
+    println!("\r    Starting Noveum AI Gateway ✓  \n");
+    
+    // Display Noveum ASCII Art Logo
+    println!("{}", r#"
+    
+     _   _                               
+    | \ | | _____   _____ _   _ _ __ ___ 
+    |  \| |/ _ \ \ / / _ \ | | | '_ ` _ \
+    | |\  | (_) \ V /  __/ |_| | | | | | |
+    |_| \_|\___/ \_/ \___|\__,_|_| |_| |_|
+                                         
+             AI Gateway v1.0.0
+    ========================================
+    "#.bright_cyan());
+    
+    println!("{}", "🚀 Starting Noveum AI Gateway...".bright_green());
+    println!("{}", "📡 Your unified interface to multiple AI providers".bright_yellow());
+    println!("{}\n", "========================================".bright_cyan());
+
     // Initialize tracing
     info!("Initializing tracing system");
     tracing_subscriber::registry()
@@ -49,9 +76,6 @@ async fn main() {
         ))
         .with(tracing_subscriber::fmt::layer().compact())
         .init();
-
-    // Display Noveum ASCII logo and welcome message
-    print_welcome_message();
 
     // Load configuration
     info!("Loading application configuration");
@@ -120,8 +144,10 @@ async fn main() {
         }
     }
 
-    // Create router with optimized settings
-    debug!("Creating application router");
+    debug!("Registering middleware for metrics collection and telemetry");
+    
+    // Register request handlers and middleware
+    info!("Registering request handlers and API routes");
     let app = Router::new()
         .route("/health", get(handlers::health_check))
         .route("/v1/*path", any(handlers::proxy_request))
@@ -144,10 +170,22 @@ async fn main() {
     let listener = tokio::net::TcpListener::from_std(tcp_listener)
         .expect("Failed to create Tokio TCP listener");
 
+    // Print server started ASCII art
+    println!("{}", r#"
+    ╔══════════════════════════════════════════════╗
+    ║                                              ║
+    ║  🌟 Noveum AI Gateway is now ONLINE! 🌟      ║
+    ║                                              ║
+    ╚══════════════════════════════════════════════╝"#.bright_green());
+
     info!(
         "AI Gateway listening on {}:{} with {} worker threads",
         config.host, config.port, config.worker_threads
     );
+
+    println!("{}", format!("    🔗 Listening at http://{}:{}", config.host, config.port).bright_cyan());
+    println!("{}", "    🔄 Press Ctrl+C to shutdown gracefully".bright_yellow());
+    println!();
 
     debug!("Starting server with graceful shutdown");
     axum::serve(
@@ -162,35 +200,6 @@ async fn main() {
     });
 }
 
-/// Displays an ASCII art logo and welcome message for Noveum AI Gateway
-fn print_welcome_message() {
-    let logo = r#"
-    _   __                              
-   / | / /__ _   _____  __  ______ ___ 
-  /  |/ / _ \ | / / _ \/ / / / __ `__ \
- / /|  /  __/ |/ /  __/ /_/ / / / / / /
-/_/ |_/\___/|___/\___/\__,_/_/ /_/ /_/ 
-                                      
-    "#.bright_cyan();
-
-    let tagline = "High-Performance AI Gateway Proxy".bright_white().bold();
-    let version = format!("v{}", env!("CARGO_PKG_VERSION")).bright_green();
-    let url = "https://noveum.ai".bright_blue().underline();
-    
-    println!("\n{}", logo);
-    println!("   {} {}", tagline, version);
-    println!("   {}", url);
-    
-    let borders = "═══════════════════════════════════════════════════════".bright_magenta();
-    println!("\n{}", borders);
-    
-    println!("   {} {}", "Status:".bold(), "Starting services...".bright_yellow());
-    println!("   {} {}", "License:".bold(), "MIT/Apache-2.0".bright_white());
-    println!("   {} {}", "Authors:".bold(), "MagicAPI Team <team@noveum.ai>".bright_white());
-    
-    println!("{}\n", borders);
-}
-
 async fn shutdown_signal() {
     info!("Registering shutdown signal handler");
     let ctrl_c = async {
@@ -199,20 +208,35 @@ async fn shutdown_signal() {
             .expect("Failed to install CTRL+C signal handler")
     };
 
+    #[cfg(unix)]
     let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        signal::unix::signal(signal::unix::SignalKind::terminate())
             .expect("Failed to install signal handler")
             .recv()
             .await;
     };
 
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
     tokio::select! {
         _ = ctrl_c => {
-            debug!("CTRL+C signal received");
+            println!("{}", r#"
+    ╔══════════════════════════════════════════════╗
+    ║                                              ║
+    ║  🛑 Noveum AI Gateway shutting down... 🛑    ║
+    ║                                              ║
+    ╚══════════════════════════════════════════════╝"#.bright_yellow());
+            info!("SIGINT (Ctrl+C) received, starting graceful shutdown");
         },
         _ = terminate => {
-            debug!("Terminate signal received");
+            println!("{}", r#"
+    ╔══════════════════════════════════════════════╗
+    ║                                              ║
+    ║  🛑 Noveum AI Gateway shutting down... 🛑    ║
+    ║                                              ║
+    ╚══════════════════════════════════════════════╝"#.bright_yellow());
+            info!("SIGTERM received, starting graceful shutdown");
         },
     }
-    info!("Shutdown signal received, starting graceful shutdown");
 }
