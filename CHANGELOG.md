@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2024-12-09
+### Enhanced
+- Improved ElasticSearch integration with more reliable data indexing
+- Enhanced telemetry data formatting for better analytics
+- Performance optimizations for high-volume request handling
+- Code cleanup and formatting improvements throughout the codebase
+- Documentation updates with clearer examples and instructions
+
+### Fixed
+- Connection handling issues with ElasticSearch during high load
+- Memory leak in streaming response handling for long-running requests
+- Inconsistent error reporting in provider-specific handlers
+- Timeout issues with slow-responding upstream providers
+- Race condition in concurrent request processing
+
 ## [1.0.0] - 2024-11-25
 ### Added
 - Comprehensive telemetry system with robust metrics collection
@@ -118,7 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error handling
 - Basic documentation
 
-[Unreleased]: https://github.com/noveum/ai-gateway/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/noveum/ai-gateway/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/noveum/ai-gateway/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/noveum/ai-gateway/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/noveum/ai-gateway/compare/v0.1.7...v0.2.0
 [0.1.7]: https://github.com/noveum/ai-gateway/compare/v0.1.6...v0.1.7
