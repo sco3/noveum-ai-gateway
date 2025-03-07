@@ -1,4 +1,5 @@
 use super::Provider;
+use super::utils::log_tracking_headers;
 use crate::error::AppError;
 use crate::telemetry::provider_metrics::{MetricsExtractor, ProviderMetrics};
 use async_trait::async_trait;
@@ -407,6 +408,9 @@ impl Provider for BedrockProvider {
 
     fn process_headers(&self, headers: &HeaderMap) -> Result<HeaderMap, AppError> {
         let mut final_headers = HeaderMap::new();
+
+        // Log tracking headers for observability
+        log_tracking_headers(headers);
 
         // Add standard headers
         final_headers.insert(

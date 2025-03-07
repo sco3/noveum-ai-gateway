@@ -1,6 +1,7 @@
 use serde_json::Value;
 use std::time::Duration;
 use tracing::debug;
+use axum::http::HeaderMap;
 
 /// Metrics collected from an AI provider response
 #[derive(Debug, Default, Clone)]
@@ -12,6 +13,10 @@ pub struct ProviderMetrics {
     pub model: String,
     pub provider_latency: Duration,
     pub request_id: Option<String>,
+    pub project_id: Option<String>,
+    pub organization_id: Option<String>,
+    pub user_id: Option<String>,
+    pub experiment_id: Option<String>,
 }
 
 impl ProviderMetrics {
@@ -64,6 +69,39 @@ impl ProviderMetrics {
             // We don't have input tokens or total tokens
             ..Default::default()
         }
+    }
+
+    /// Extract tracking headers from the original request headers
+    pub fn extract_tracking_headers(headers: &HeaderMap) -> Self {
+        let mut metrics = Self::default();
+        
+        // Extract project ID
+        if let Some(project_id) = headers.get("x-project-id").and_then(|v| v.to_str().ok()) {
+            debug!("Found x-project-id header: {}", project_id);
+            metrics.project_id = Some(project_id.to_string());
+        }
+        
+        // Extract organization ID - handle both British and American spellings
+        if let Some(org_id) = headers.get("x-organization-id")
+            .or_else(|| headers.get("x-organisation-id"))  // Try both spellings
+            .and_then(|v| v.to_str().ok()) {
+            debug!("Found organization ID header: {}", org_id);
+            metrics.organization_id = Some(org_id.to_string());
+        }
+        
+        // Extract user ID
+        if let Some(user_id) = headers.get("x-user-id").and_then(|v| v.to_str().ok()) {
+            debug!("Found x-user-id header: {}", user_id);
+            metrics.user_id = Some(user_id.to_string());
+        }
+        
+        // Extract experiment ID
+        if let Some(experiment_id) = headers.get("x-experiment-id").and_then(|v| v.to_str().ok()) {
+            debug!("Found x-experiment-id header: {}", experiment_id);
+            metrics.experiment_id = Some(experiment_id.to_string());
+        }
+        
+        metrics
     }
 }
 
