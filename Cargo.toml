@@ -59,6 +59,7 @@ metrics = "0.24.1"
 opentelemetry = { version = "0.27.1", features = ["metrics"] }
 elasticsearch = "8.16.0-alpha.1"
 uuid = { version = "1.15.1", features = ["serde", "v4"] }
+colored = "2.1.0"
 
 [dev-dependencies]
 noveum-ai-gateway = { path = "." }

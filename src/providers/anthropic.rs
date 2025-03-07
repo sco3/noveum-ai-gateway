@@ -272,30 +272,29 @@ impl MetricsExtractor for AnthropicMetricsExtractor {
             let mut metrics = ProviderMetrics::default();
             metrics.model = "claude".to_string();
             
-            // Extract model if available
+            // Extract model if available (from any event type)
             if let Some(model) = json.get("message").and_then(|m| m.get("model")).and_then(|v| v.as_str()) {
                 metrics.model = model.to_string();
             }
             
-            // Process message_start event - this contains input tokens
+            // For message_start, extract and return input tokens
             if event_type == "message_start" {
                 if let Some(message) = json.get("message") {
+                    // Extract request ID
+                    if let Some(id) = message.get("id").and_then(|v| v.as_str()) {
+                        metrics.request_id = Some(id.to_string());
+                    }
+                    
+                    // Extract input tokens from usage section
                     if let Some(usage) = message.get("usage") {
                         if let Some(input_tokens) = usage.get("input_tokens").and_then(|v| v.as_u64()).map(|v| v as u32) {
+                            metrics.input_tokens = Some(input_tokens);
+                            
                             // Store input tokens for later
                             ANTHROPIC_INPUT_TOKENS.with(|tokens| {
                                 *tokens.borrow_mut() = Some(input_tokens);
                                 debug!("Stored input tokens from message_start: {}", input_tokens);
                             });
-                            
-                            // Set input tokens in metrics
-                            metrics.input_tokens = Some(input_tokens);
-                            metrics.total_tokens = Some(input_tokens);
-                            
-                            // Extract request ID if available
-                            if let Some(id) = message.get("id").and_then(|v| v.as_str()) {
-                                metrics.request_id = Some(id.to_string());
-                            }
                             
                             return Some(metrics);
                         }
@@ -303,33 +302,33 @@ impl MetricsExtractor for AnthropicMetricsExtractor {
                 }
             }
             
-            // Process message_delta event - this usually contains output tokens at the end 
-            else if event_type == "message_delta" {
-                if let Some(usage) = json.get("usage") {
-                    if let Some(output_tokens) = usage.get("output_tokens").and_then(|v| v.as_u64()).map(|v| v as u32) {
-                        // Get the stored input tokens
-                        let input_tokens = ANTHROPIC_INPUT_TOKENS.with(|tokens| *tokens.borrow());
-                        
-                        // Set output tokens
-                        metrics.output_tokens = Some(output_tokens);
-                        
-                        // Set input tokens from stored value
-                        metrics.input_tokens = input_tokens;
-                        
-                        // Calculate total tokens
-                        if let Some(input) = input_tokens {
-                            metrics.total_tokens = Some(input + output_tokens);
-                            metrics.cost = Some(calculate_anthropic_cost(&metrics.model, input + output_tokens));
-                            debug!("Combined stored input tokens ({}) with output tokens ({}) in message_delta", 
-                                   input, output_tokens);
-                        } else {
-                            metrics.total_tokens = Some(output_tokens);
-                            metrics.cost = Some(calculate_anthropic_cost(&metrics.model, output_tokens));
-                            debug!("No stored input tokens, using only output tokens ({}) in message_delta", output_tokens);
-                        }
-                        
-                        return Some(metrics);
+            // Final metrics are in message_delta with usage
+            else if event_type == "message_delta" && json.get("usage").is_some() {
+                let output_tokens = json.get("usage")
+                    .and_then(|u| u.get("output_tokens"))
+                    .and_then(|t| t.as_u64())
+                    .map(|t| t as u32);
+                
+                if let Some(output) = output_tokens {
+                    metrics.output_tokens = Some(output);
+                    
+                    // Get the stored input tokens
+                    let input_tokens = ANTHROPIC_INPUT_TOKENS.with(|tokens| *tokens.borrow());
+                    metrics.input_tokens = input_tokens;
+                    
+                    // Calculate total tokens
+                    if let Some(input) = input_tokens {
+                        metrics.total_tokens = Some(input + output);
+                        metrics.cost = Some(calculate_anthropic_cost(&metrics.model, input + output));
+                        debug!("Final metrics - input: {}, output: {}, total: {}", 
+                               input, output, input + output);
+                    } else {
+                        metrics.total_tokens = Some(output);
+                        metrics.cost = Some(calculate_anthropic_cost(&metrics.model, output));
+                        debug!("Final metrics missing input tokens, using only output: {}", output);
                     }
+                    
+                    return Some(metrics);
                 }
             }
         }
