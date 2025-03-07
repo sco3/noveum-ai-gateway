@@ -252,7 +252,7 @@ impl TelemetryPlugin for ElasticsearchPlugin {
         debug!(
             provider = provider,
             model = model,
-            request_id = request_id,
+            request_id = provider_request_id,
             "Successfully exported metrics to Elasticsearch"
         );
         
