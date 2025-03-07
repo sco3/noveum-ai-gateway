@@ -16,6 +16,7 @@ use axum::body::to_bytes;
 use hyper::Error;
 use serde_json::Value;
 use http;
+use uuid;
 
 // Constants for safeguards
 const CHANNEL_SIZE: usize = 1000; // Increased buffer for streaming response
@@ -48,7 +49,8 @@ pub async fn metrics_middleware(
         
     let org_id = req
         .headers()
-        .get("x-organisation-id")
+        .get("x-organization-id")
+        .or_else(|| req.headers().get("x-organisation-id"))  // Try both British and American spellings
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
         
@@ -63,6 +65,18 @@ pub async fn metrics_middleware(
         .get("x-experiment-id")
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
+        
+    // Use our new utility method to extract tracking headers
+    let tracking_headers = ProviderMetrics::extract_tracking_headers(req.headers());
+    
+    // Log the tracking headers at debug level for debugging
+    debug!(
+        "Tracking headers: project_id={:?}, organization_id={:?}, user_id={:?}, experiment_id={:?}",
+        tracking_headers.project_id, 
+        tracking_headers.organization_id, 
+        tracking_headers.user_id, 
+        tracking_headers.experiment_id
+    );
 
     debug!("Received request: provider={}, path={}, method={}", provider, path, method);
 
@@ -208,10 +222,10 @@ async fn handle_regular_response(
         total_tokens: provider_metrics.total_tokens,
         status_code: parts.status.as_u16(),
         cost: provider_metrics.cost,
-        project_id,
-        org_id,
-        user_id,
-        experiment_id,
+        project_id: project_id.or(provider_metrics.project_id),
+        org_id: org_id.or(provider_metrics.organization_id),
+        user_id: user_id.or(provider_metrics.user_id),
+        experiment_id: experiment_id.or(provider_metrics.experiment_id),
         provider_request_id,
         request_body: req_body,
         response_body: resp_body,
@@ -385,10 +399,10 @@ async fn handle_streaming_response(
                 total_tokens: accumulated_metrics.total_tokens,
                 status_code: parts.status.as_u16(),
                 cost: accumulated_metrics.cost,
-                project_id,
-                org_id,
-                user_id,
-                experiment_id,
+                project_id: project_id.or(accumulated_metrics.project_id),
+                org_id: org_id.or(accumulated_metrics.organization_id),
+                user_id: user_id.or(accumulated_metrics.user_id),
+                experiment_id: experiment_id.or(accumulated_metrics.experiment_id),
                 provider_request_id,
                 request_body: req_body,
                 response_body: resp_body,

@@ -277,6 +277,26 @@ impl RequestMetrics {
             }
         }
         
+        // Handle error objects - convert to string to prevent Elasticsearch mapping errors
+        if let Some(error) = value.get_mut("error") {
+            if error.is_object() || error.is_array() {
+                let error_str = error.to_string();
+                *error = json!(error_str);
+                debug!("Converting error object to string for Elasticsearch compatibility: {}", error_str);
+            }
+        }
+        
+        // Check for error objects in common nested structures (like data.error)
+        if let Some(data) = value.get_mut("data") {
+            if let Some(error) = data.get_mut("error") {
+                if error.is_object() || error.is_array() {
+                    let error_str = error.to_string();
+                    *error = json!(error_str);
+                    debug!("Converting nested data.error object to string: {}", error_str);
+                }
+            }
+        }
+        
         // Handle nested content in streamed_data field
         if let Some(streamed_data) = value.get_mut("streamed_data").and_then(|sd| sd.as_array_mut()) {
             for chunk in streamed_data {
@@ -298,6 +318,14 @@ impl RequestMetrics {
                                 *seed = json!(seed_str);
                             }
                         }
+                    }
+                }
+                
+                // Handle error objects in streamed data
+                if let Some(error) = chunk.get_mut("error") {
+                    if error.is_object() || error.is_array() {
+                        let error_str = error.to_string();
+                        *error = json!(error_str);
                     }
                 }
             }

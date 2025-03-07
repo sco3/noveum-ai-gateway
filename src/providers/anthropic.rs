@@ -1,4 +1,5 @@
 use super::Provider;
+use super::utils::log_tracking_headers;
 use crate::error::AppError;
 use crate::telemetry::provider_metrics::{MetricsExtractor, ProviderMetrics};
 use async_trait::async_trait;
@@ -49,6 +50,9 @@ impl Provider for AnthropicProvider {
     fn process_headers(&self, original_headers: &HeaderMap) -> Result<HeaderMap, AppError> {
         debug!("Processing Anthropic request headers");
         let mut headers = HeaderMap::new();
+
+        // Log tracking headers for observability
+        log_tracking_headers(original_headers);
 
         // Add content type
         headers.insert(

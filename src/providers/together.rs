@@ -1,4 +1,5 @@
 use super::Provider;
+use super::utils::log_tracking_headers;
 use crate::error::AppError;
 use async_trait::async_trait;
 use axum::http::HeaderMap;
@@ -35,6 +36,9 @@ impl Provider for TogetherProvider {
     fn process_headers(&self, original_headers: &HeaderMap) -> Result<HeaderMap, AppError> {
         debug!("Processing Together request headers");
         let mut headers = HeaderMap::new();
+
+        // Log tracking headers for observability
+        log_tracking_headers(original_headers);
 
         // Add content type
         headers.insert(

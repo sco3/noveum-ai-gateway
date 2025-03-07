@@ -58,8 +58,8 @@ impl ElasticsearchPlugin {
             .map(jitter) // Add jitter to prevent thundering herd
             .take(3);    // Max 3 retries
         
-        // Log sending to Elasticsearch at start
-        info!("Sending telemetry data to Elasticsearch, request_id: {}", request_id);
+        // Log sending to Elasticsearch at debug level instead of info to reduce noise
+        debug!("Sending telemetry data to Elasticsearch, request_id: {}", request_id);
         
         let index = self.index.clone();
         let client = self.client.clone();
@@ -185,6 +185,12 @@ impl ElasticsearchPlugin {
 #[async_trait]
 impl TelemetryPlugin for ElasticsearchPlugin {
     async fn export(&self, metrics: &RequestMetrics) -> Result<(), Box<dyn Error>> {
+        // Skip exporting health check requests to reduce noise
+        if metrics.path == "/health" {
+            debug!("Skipping telemetry export for health check request");
+            return Ok(());
+        }
+        
         // Increment request counter and log periodically
         let req_count = self.requests_processed.fetch_add(1, Ordering::Relaxed) + 1;
         if req_count % 500 == 0 {
@@ -246,7 +252,7 @@ impl TelemetryPlugin for ElasticsearchPlugin {
         debug!(
             provider = provider,
             model = model,
-            request_id = request_id,
+            request_id = provider_request_id,
             "Successfully exported metrics to Elasticsearch"
         );
         
@@ -261,6 +267,12 @@ impl TelemetryPlugin for ElasticsearchPlugin {
 #[async_trait]
 impl MetricsExporter for ElasticsearchPlugin {
     async fn export_metrics(&self, metrics: RequestMetrics) -> Result<(), Box<dyn Error>> {
+        // Skip exporting health check requests to reduce noise
+        if metrics.path == "/health" {
+            debug!("Skipping metrics export for health check request");
+            return Ok(());
+        }
+        
         self.export(&metrics).await
     }
 

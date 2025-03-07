@@ -1,4 +1,5 @@
 use super::Provider;
+use super::utils::log_tracking_headers;
 use crate::error::AppError;
 use crate::telemetry::provider_metrics::{MetricsExtractor, ProviderMetrics};
 use async_trait::async_trait;
@@ -33,6 +34,9 @@ impl Provider for OpenAIProvider {
         debug!("Processing OpenAI request headers");
         let mut headers = HeaderMap::new();
 
+        // Log tracking headers for observability
+        log_tracking_headers(original_headers);
+
         // Add content type
         headers.insert(
             http::header::CONTENT_TYPE,
@@ -40,21 +44,7 @@ impl Provider for OpenAIProvider {
         );
 
         // Process authentication
-        if let Some(api_key) = original_headers
-            .get("x-noveum-api-key")
-            .and_then(|h| h.to_str().ok())
-        {
-            debug!("Using x-noveum-api-key for authentication");
-            headers.insert(
-                http::header::AUTHORIZATION,
-                http::header::HeaderValue::from_str(&format!("Bearer {}", api_key)).map_err(
-                    |_| {
-                        error!("Failed to create authorization header from x-noveum-api-key");
-                        AppError::InvalidHeader
-                    },
-                )?,
-            );
-        } else if let Some(auth) = original_headers
+        if let Some(auth) = original_headers
             .get("authorization")
             .and_then(|h| h.to_str().ok())
         {

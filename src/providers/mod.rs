@@ -73,6 +73,7 @@ pub mod fireworks;
 pub mod groq;
 pub mod openai;
 pub mod together;
+pub mod utils;
 
 pub use anthropic::AnthropicProvider;
 pub use bedrock::BedrockProvider;
