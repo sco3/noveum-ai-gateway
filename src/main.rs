@@ -17,6 +17,7 @@ use tower_http::{
 };
 use tracing::{debug, error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use colored::*;
 
 mod config;
 mod context;
@@ -48,6 +49,9 @@ async fn main() {
         ))
         .with(tracing_subscriber::fmt::layer().compact())
         .init();
+
+    // Display Noveum ASCII logo and welcome message
+    print_welcome_message();
 
     // Load configuration
     info!("Loading application configuration");
@@ -156,6 +160,35 @@ async fn main() {
         error!("Server error: {}", e);
         std::process::exit(1);
     });
+}
+
+/// Displays an ASCII art logo and welcome message for Noveum AI Gateway
+fn print_welcome_message() {
+    let logo = r#"
+    _   __                              
+   / | / /__ _   _____  __  ______ ___ 
+  /  |/ / _ \ | / / _ \/ / / / __ `__ \
+ / /|  /  __/ |/ /  __/ /_/ / / / / / /
+/_/ |_/\___/|___/\___/\__,_/_/ /_/ /_/ 
+                                      
+    "#.bright_cyan();
+
+    let tagline = "High-Performance AI Gateway Proxy".bright_white().bold();
+    let version = format!("v{}", env!("CARGO_PKG_VERSION")).bright_green();
+    let url = "https://noveum.ai".bright_blue().underline();
+    
+    println!("\n{}", logo);
+    println!("   {} {}", tagline, version);
+    println!("   {}", url);
+    
+    let borders = "═══════════════════════════════════════════════════════".bright_magenta();
+    println!("\n{}", borders);
+    
+    println!("   {} {}", "Status:".bold(), "Starting services...".bright_yellow());
+    println!("   {} {}", "License:".bold(), "MIT/Apache-2.0".bright_white());
+    println!("   {} {}", "Authors:".bold(), "MagicAPI Team <team@noveum.ai>".bright_white());
+    
+    println!("{}\n", borders);
 }
 
 async fn shutdown_signal() {
