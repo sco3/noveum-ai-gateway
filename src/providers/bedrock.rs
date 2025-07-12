@@ -79,19 +79,26 @@ impl BedrockProvider {
                 AppError::InvalidRequestFormat
             })?;
 
-        let transformed_messages = messages
-            .iter()
-            .map(|msg| {
-                let content = msg["content"].as_str().unwrap_or_default();
-                json!({
-                    "role": msg["role"].as_str().unwrap_or("user"),
+        let mut transformed_messages = Vec::new();
+        let mut system_messages = Vec::new();
+
+        for msg in messages {
+            let role = msg["role"].as_str().unwrap_or("user");
+            let content = msg["content"].as_str().unwrap_or_default();
+
+            if role == "system" {
+                system_messages.push(json!({ "text": content }));
+            } else {
+                transformed_messages.push(json!({
+                    "role": role,
                     "content": [{ "text": content }]
-                })
-            })
-            .collect::<Vec<_>>();
+                }));
+            }
+        }
 
         let transformed = json!({
             "messages": transformed_messages,
+            "system": system_messages,
             "inferenceConfig": {
                 "maxTokens": body.get("max_tokens")
                     .and_then(Value::as_u64)
