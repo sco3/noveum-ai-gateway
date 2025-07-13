@@ -453,17 +453,38 @@ impl Provider for BedrockProvider {
     fn requires_signing(&self) -> bool {
         true
     }
+    
+
 
     fn get_signing_credentials(&self, headers: &HeaderMap) -> Option<(String, String, String)> {
-        let access_key = headers.get("x-aws-access-key-id")?.to_str().ok()?;
-        let secret_key = headers.get("x-aws-secret-access-key")?.to_str().ok()?;
+        
+        // let access_key = headers.get("x-aws-access-key-id")?.to_str().ok()?;
+        // let secret_key = headers.get("x-aws-secret-access-key")?.to_str().ok()?;
+        
+        
         let region = headers
             .get("x-aws-region")
             .and_then(|h| h.to_str().ok())
             .map(String::from)
             .unwrap_or_else(|| self.region.read().clone());
 
-        Some((access_key.to_string(), secret_key.to_string(), region))
+        let access_key = headers
+            .get("x-aws-access-key-id")
+            .and_then(|v| v.to_str().ok().map(|s| s.to_owned()))
+            .or_else(|| self.aws_key.as_ref().map(|arc| arc.read().clone()))?;
+
+        let secret_key = headers
+            .get("x-aws-secret-access-key")
+            .and_then(|v| v.to_str().ok().map(|s| s.to_owned()))
+            .or_else(|| self.aws_secret.as_ref().map(|arc| arc.read().clone()))?;
+        
+        
+        //Some((access_key.to_string(), secret_key.to_string(), region))
+        debug!( //
+            "AWS credentials - Access Key: {} s: {}, Region: {}", 
+            mask_key(access_key.as_str()), mask_key(secret_key.as_str()), region,
+        );
+        Some((access_key, secret_key, region))
     }
 
     fn get_signing_host(&self) -> String {
@@ -710,4 +731,11 @@ fn calculate_bedrock_cost(model: &str, total_tokens: u32) -> f64 {
         m if m.contains("llama2") => (total_tokens as f64) * 0.00001,
         _ => 0.0,
     }
+}
+
+
+fn mask_key(key: &str) -> String {
+    let visible = 6.min(key.len());
+    let masked_len = key.len().saturating_sub(visible);
+    format!("{}{}", &key[..visible], "*".repeat(masked_len))
 }
