@@ -37,7 +37,7 @@ pub struct BedrockProvider {
 
 impl BedrockProvider {
     pub fn new() -> Self {
-        let region = DEFAULT_REGION.to_string();
+        let region = std::env::var("AWS_REGION").unwrap_or_else(|_| DEFAULT_REGION.to_string());
         debug!("Initializing BedrockProvider with region: {}", region);
         
         // Create a random system fingerprint that will be reused across chunks
