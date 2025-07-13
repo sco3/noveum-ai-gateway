@@ -279,6 +279,11 @@ impl BedrockProvider {
     // Helper method to transform Bedrock response to OpenAI format
     fn transform_bedrock_to_openai_format(&self, bedrock_response: Value) -> Result<Value, AppError> {
         debug!("Transforming Bedrock response to OpenAI format");
+
+        let metrics = bedrock_response
+            .get("metrics")
+            .cloned()
+            .unwrap_or_else(|| json!({}));        
         
         // Extract content from Bedrock response
         let content = bedrock_response
@@ -314,6 +319,7 @@ impl BedrockProvider {
         
         // Create OpenAI format response
         let openai_response = json!({
+            "metrics":metrics,
             "id": format!("chatcmpl-{}", uuid::Uuid::new_v4().to_string().replace("-", "").chars().take(10).collect::<String>()),
             "object": "chat.completion",
             "created": chrono::Utc::now().timestamp(),
