@@ -1,3 +1,4 @@
+use std::env;
 use super::Provider;
 use super::utils::log_tracking_headers;
 use crate::error::AppError;
@@ -33,11 +34,13 @@ pub struct BedrockProvider {
     is_streaming: Arc<RwLock<bool>>,
     system_fingerprint: Arc<RwLock<String>>,
     first_chunk: Arc<RwLock<bool>>,
+    aws_key: Option<Arc<RwLock<String>>>,
+    aws_secret: Option<Arc<RwLock<String>>>,
 }
 
 impl BedrockProvider {
     pub fn new() -> Self {
-        let region = std::env::var("AWS_REGION").unwrap_or_else(|_| DEFAULT_REGION.to_string());
+        let region = env::var("AWS_REGION").unwrap_or_else(|_| DEFAULT_REGION.to_string());
         debug!("Initializing BedrockProvider with region: {}", region);
         
         // Create a random system fingerprint that will be reused across chunks
@@ -53,6 +56,12 @@ impl BedrockProvider {
             is_streaming: Arc::new(RwLock::new(false)),
             system_fingerprint: Arc::new(RwLock::new(fingerprint)),
             first_chunk: Arc::new(RwLock::new(true)),
+            aws_key: env::var("AWS_ACCESS_KEY_ID")
+                .ok()
+                .map(|key| Arc::new(RwLock::new(key))),
+            aws_secret: env::var("AWS_SECRET_ACCESS_KEY")
+                .ok()
+                .map(|key| Arc::new(RwLock::new(key))),
         }
     }
 
