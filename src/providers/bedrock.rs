@@ -457,11 +457,6 @@ impl Provider for BedrockProvider {
 
 
     fn get_signing_credentials(&self, headers: &HeaderMap) -> Option<(String, String, String)> {
-        
-        // let access_key = headers.get("x-aws-access-key-id")?.to_str().ok()?;
-        // let secret_key = headers.get("x-aws-secret-access-key")?.to_str().ok()?;
-        
-        
         let region = headers
             .get("x-aws-region")
             .and_then(|h| h.to_str().ok())
@@ -478,8 +473,6 @@ impl Provider for BedrockProvider {
             .and_then(|v| v.to_str().ok().map(|s| s.to_owned()))
             .or_else(|| self.aws_secret.as_ref().map(|arc| arc.read().clone()))?;
         
-        
-        //Some((access_key.to_string(), secret_key.to_string(), region))
         debug!( //
             "AWS credentials - Access Key: {} s: {}, Region: {}", 
             mask_key(access_key.as_str()), mask_key(secret_key.as_str()), region,
